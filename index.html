@@ -160,23 +160,6 @@ class Glyph{
   this.state=Math.random()<0.1?"glitch":"pulse";
  }
 
- draw(context,x,y,t){
-
-  if(glyphMap[this.char]){
-
-   const img=loadGlyph(this.char);
-
-   let offsetY=0;
-   let scale=1;
-
-   if(this.state==="pulse"){
-    scale=1+Math.sin(t+this.index*0.3)*0.05;
-   }
-
-   if(this.state==="glitch"){
-    offsetY=(Math.random()-0.5)*4;
-   }
-
 const img=loadGlyph(this.char);
 
 if(img && img.complete && img.naturalWidth>0){
@@ -194,7 +177,7 @@ if(img && img.complete && img.naturalWidth>0){
  context.fillStyle="#004422";
  context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
 
-}
+  }
  }
 }
 
