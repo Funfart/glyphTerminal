@@ -32,7 +32,13 @@ canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;
 
 /* ================= CONFIG ================= */
 
-const IPFS_BASE="https://ipfs.io/ipfs/bafybeig6ernsujafbpe4atdrs4zu6co6t5tizcz3sgjclhlkroqzbwkekm/";
+const IPFS_GATEWAYS=[
+"https://nftstorage.link/ipfs/",
+"https://cloudflare-ipfs.com/ipfs/",
+"https://ipfs.io/ipfs/"
+];
+
+const CID="bafybeig6ernsujafbpe4atdrs4zu6co6t5tizcz3sgjclhlkroqzbwkekm";
 const GLYPH_SIZE=32;
 const LINE_HEIGHT=46;
 const MARGIN=20;
@@ -112,11 +118,35 @@ function tokenize(text){
 /* ================= GLYPH LOADER ================= */
 
 function loadGlyph(k){
+
+ if(!glyphMap[k]) return null;
+
  if(!glyphCache[k]){
+
   const img=new Image();
-  img.src=IPFS_BASE+glyphMap[k];
+  img.crossOrigin="anonymous";
+
+  let gatewayIndex=0;
+
+  function tryLoad(){
+
+   if(gatewayIndex>=IPFS_GATEWAYS.length){
+    console.warn("Failed to load glyph:",k);
+    return;
+   }
+
+   img.src=IPFS_GATEWAYS[gatewayIndex]+CID+"/"+glyphMap[k];
+
+   img.onerror=()=>{
+    gatewayIndex++;
+    tryLoad();
+   };
+  }
+
+  tryLoad();
   glyphCache[k]=img;
  }
+
  return glyphCache[k];
 }
 
@@ -147,18 +177,24 @@ class Glyph{
     offsetY=(Math.random()-0.5)*4;
    }
 
-   context.drawImage(
-    img,
-    x,
-    y+offsetY,
-    GLYPH_SIZE*scale,
-    GLYPH_SIZE*scale
-   );
+const img=loadGlyph(this.char);
 
-  }else{
-   context.fillStyle="#00ff88";
-   context.fillText(this.char,x,y);
-  }
+if(img && img.complete && img.naturalWidth>0){
+
+ context.drawImage(
+  img,
+  x,
+  y+offsetY,
+  GLYPH_SIZE*scale,
+  GLYPH_SIZE*scale
+ );
+
+}else{
+
+ context.fillStyle="#004422";
+ context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+
+}
  }
 }
 
