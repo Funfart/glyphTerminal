@@ -33,17 +33,22 @@ canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;
 /* ================= CONFIG ================= */
 
 const IPFS_GATEWAYS=[
-"https://ipfs.io/ipfs/",
-"https://w3s.link/ipfs/"
+"https://gold-junior-swordfish-840.mypinata.cloud/ipfs/",
+"https://ipfs.io/ipfs/"
 ];
 
-const CID="bafybeig6ernsujafbpe4atdrs4zu6co6t5tizcz3sgjclhlkroqzbwkekm";
-
+const CID="bafybeihfhw67vjcqvw4lhhsk7qzv7musub23k2mzqk3p7cdh2yxoremnfe";
 const GLYPH_SIZE=32;
 const LINE_HEIGHT=46;
 const MARGIN=20;
 const WAVE_SPEED=0.03;
 const GIF_FPS=12;
+
+/* ================= SAFE URL BUILDER ================= */
+
+function buildGlyphURL(filename,gateway){
+ return gateway+CID+"/"+encodeURIComponent(filename);
+}
 
 /* ================= GLYPH MAP ================= */
 
@@ -58,7 +63,7 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 "'":"app.png","=":"eq+.png","/":"fSlash.png","$":"crypto.png",
 "\\":"cbSlash.png",":":"colon.png","<":"less.png",">":"more.png",
 "!":"!.png","&":"&.png","|":"or.png","\"":"qu.png","+":"+.png",
-"-":"-.png","`":"bTick.png",",":"ap.png","%":"%.png",
+"-":"-.png","`":"bTick.png",",":"ap.png","%":"%p.png",
 "0":"0.png","1":"_1.png","2":"_2.png","3":"_3.png",
 "]":"cSqBr.png","[":"oSqBr.png","4":"_4.png","5":"_5.png",
 "6":"_6.png","7":"_7.png","8":"_8.png","9":"_9.png"
@@ -78,7 +83,7 @@ ctx.font="24px monospace";
 ctx.textBaseline="top";
 const input=document.getElementById("input");
 
-/* ================= PRELOAD ALL GLYPHS ================= */
+/* ================= PRELOAD GLYPHS ================= */
 
 function preloadGlyphs(callback){
 
@@ -87,9 +92,9 @@ function preloadGlyphs(callback){
 
  keys.forEach(k=>{
 
+  const filename=glyphMap[k];
   const img=new Image();
   img.crossOrigin="anonymous";
-  img.referrerPolicy="no-referrer";
 
   let gatewayIndex=0;
 
@@ -102,8 +107,7 @@ function preloadGlyphs(callback){
     return;
    }
 
-   const filename=encodeURIComponent(glyphMap[k]);
-   img.src=IPFS_GATEWAYS[gatewayIndex]+CID+"/"+filename;
+   img.src=buildGlyphURL(filename,IPFS_GATEWAYS[gatewayIndex]);
 
    img.onload=()=>{
     glyphCache[k]=img;
@@ -183,22 +187,31 @@ class Glyph{
    offsetY=(Math.random()-0.5)*4;
   }
 
-  const img=glyphCache[this.char];
+  if(glyphMap[this.char]){
 
-  if(img && img.complete && img.naturalWidth>0){
+   const img=glyphCache[this.char];
 
-   context.drawImage(
-    img,
-    x,
-    y+offsetY,
-    GLYPH_SIZE*scale,
-    GLYPH_SIZE*scale
-   );
+   if(img && img.complete && img.naturalWidth>0){
+
+    context.drawImage(
+     img,
+     x,
+     y+offsetY,
+     GLYPH_SIZE*scale,
+     GLYPH_SIZE*scale
+    );
+
+   }else{
+
+    context.fillStyle="#004422";
+    context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+
+   }
 
   }else{
 
-   context.fillStyle="#004422";
-   context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+   context.fillStyle="#00ff88";
+   context.fillText(this.char,x,y+offsetY);
 
   }
 
@@ -244,6 +257,21 @@ function render(){
  time+=WAVE_SPEED;
  requestAnimationFrame(render);
 }
+
+/* ================= CONTROLS ================= */
+
+document.getElementById("translate").onclick=()=>{
+ if(encoded){
+  input.value=decodeTokens(input.value);
+ }else{
+  input.value=encodeText(input.value);
+ }
+ encoded=!encoded;
+ revealIndex=0;
+};
+
+document.getElementById("typeToggle").onclick=()=>typing=!typing;
+document.getElementById("export").onclick=exportGIF;
 
 /* ================= START ENGINE ================= */
 
