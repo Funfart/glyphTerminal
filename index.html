@@ -33,8 +33,7 @@ canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;
 /* ================= CONFIG ================= */
 
 const IPFS_GATEWAYS=[
-"https://nftstorage.link/ipfs/",
-"https://cloudflare-ipfs.com/ipfs/",
+"https://gold-junior-swordfish-840.mypinata.cloud/ipfs/",
 "https://ipfs.io/ipfs/"
 ];
 
@@ -44,7 +43,6 @@ const LINE_HEIGHT=46;
 const MARGIN=20;
 const WAVE_SPEED=0.03;
 const GIF_FPS=12;
-const FINAL_HOLD_SECONDS=7;
 
 /* ================= GLYPH MAP ================= */
 
@@ -78,6 +76,50 @@ const ctx=canvas.getContext("2d");
 ctx.font="24px monospace";
 ctx.textBaseline="top";
 const input=document.getElementById("input");
+
+/* ================= PRELOAD ALL GLYPHS ================= */
+
+function preloadGlyphs(callback){
+
+ const keys=Object.keys(glyphMap);
+ let loaded=0;
+
+ keys.forEach(k=>{
+
+  const img=new Image();
+  img.crossOrigin="anonymous";
+
+  let gatewayIndex=0;
+
+  function tryLoad(){
+
+   if(gatewayIndex>=IPFS_GATEWAYS.length){
+    console.warn("Missing glyph:",k);
+    loaded++;
+    if(loaded===keys.length) callback();
+    return;
+   }
+
+   img.src=IPFS_GATEWAYS[gatewayIndex]+CID+"/"+glyphMap[k];
+
+   img.onload=()=>{
+    glyphCache[k]=img;
+    loaded++;
+    if(loaded===keys.length) callback();
+   };
+
+   img.onerror=()=>{
+    gatewayIndex++;
+    tryLoad();
+   };
+
+  }
+
+  tryLoad();
+
+ });
+
+}
 
 /* ================= TRANSLATOR ================= */
 
@@ -115,41 +157,6 @@ function tokenize(text){
  return tokens;
 }
 
-/* ================= GLYPH LOADER ================= */
-
-function loadGlyph(k){
-
- if(!glyphMap[k]) return null;
-
- if(!glyphCache[k]){
-
-  const img=new Image();
-  img.crossOrigin="anonymous";
-
-  let gatewayIndex=0;
-
-  function tryLoad(){
-
-   if(gatewayIndex>=IPFS_GATEWAYS.length){
-    console.warn("Failed to load glyph:",k);
-    return;
-   }
-
-   img.src=IPFS_GATEWAYS[gatewayIndex]+CID+"/"+glyphMap[k];
-
-   img.onerror=()=>{
-    gatewayIndex++;
-    tryLoad();
-   };
-  }
-
-  tryLoad();
-  glyphCache[k]=img;
- }
-
- return glyphCache[k];
-}
-
 /* ================= GLYPH OBJECT ================= */
 
 class Glyph{
@@ -175,7 +182,7 @@ class Glyph{
 
   if(glyphMap[this.char]){
 
-   const img=loadGlyph(this.char);
+   const img=glyphCache[this.char];
 
    if(img && img.complete && img.naturalWidth>0){
 
@@ -243,7 +250,6 @@ function render(){
  time+=WAVE_SPEED;
  requestAnimationFrame(render);
 }
-render();
 
 /* ================= GIF EXPORT ================= */
 
@@ -305,6 +311,13 @@ document.getElementById("translate").onclick=()=>{
 
 document.getElementById("typeToggle").onclick=()=>typing=!typing;
 document.getElementById("export").onclick=exportGIF;
+
+/* ================= START ENGINE AFTER PRELOAD ================= */
+
+preloadGlyphs(()=>{
+ console.log("All glyphs preloaded.");
+ render();
+});
 
 </script>
 </body>
