@@ -2,208 +2,262 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal v2.6</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Glyph Terminal v2.7 Mobile Runtime</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 
 <style>
-body{background:black;color:#00ff88;font-family:monospace;margin:0;}
-#controls{position:sticky;top:0;background:#000;padding:10px;border-bottom:1px solid #00ff88;}
-textarea{width:100%;height:140px;background:#000;color:#00ff88;border:1px solid #00ff88;padding:10px;}
-button,input{margin-top:6px;width:100%;background:#000;color:#00ff88;border:1px solid #00ff88;padding:6px;}
-canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;}
+
+:root{
+ --neon:#00ff88;
+ --bg:#000;
+ --panel:rgba(0,0,0,0.85);
+}
+
+body{
+ margin:0;
+ background:var(--bg);
+ color:var(--neon);
+ font-family:monospace;
+ overflow:hidden;
+}
+
+#controls{
+ position:fixed;
+ top:0;
+ left:0;
+ right:0;
+ backdrop-filter:blur(12px);
+ background:var(--panel);
+ padding:10px env(safe-area-inset-top);
+ border-bottom:1px solid var(--neon);
+ z-index:10;
+}
+
+#controls.collapsed textarea,
+#controls.collapsed input{
+ display:none;
+}
+
+textarea{
+ width:100%;
+ height:120px;
+ background:#000;
+ color:var(--neon);
+ border:1px solid var(--neon);
+ padding:10px;
+ font-size:14px;
+}
+
+button,input{
+ width:100%;
+ padding:12px;
+ margin-top:6px;
+ font-size:16px;
+ background:#000;
+ color:var(--neon);
+ border:1px solid var(--neon);
+ border-radius:8px;
+}
+
+canvas{
+ position:absolute;
+ top:0;
+ left:0;
+ width:100vw;
+ height:100vh;
+}
+
 </style>
 </head>
 <body>
 
 <div id="controls">
 <textarea id="input">Welcome to the NFT Terminal.
-GIF Export now works.
-Typewriter glyph animation included.
+Mobile Optimized Runtime.
 { hello_world | web3 }</textarea>
 
-<button id="toggle">Encode / Decode Translator</button>
-<button id="typeToggle">Play / Pause Typing</button>
+<button id="toggle">Encode / Decode</button>
+<button id="typeToggle">Play / Pause</button>
 <input id="speed" type="range" min="1" max="10" value="4">
 <button id="export">Export GIF</button>
 </div>
 
-<canvas id="canvas" width="1200" height="650"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
 
-/* ================= CONFIG ================= */
+/* ================= MOBILE CONFIG ================= */
+
+const DPR=Math.min(window.devicePixelRatio||1,2);
+const MOBILE=window.innerWidth<768;
+
 const GLYPH_PATH="./glyphs/";
-const GLYPH_SIZE=32;
-const LINE_HEIGHT=46;
-const MARGIN=20;
-const WAVE_AMPLITUDE=3;
+let GLYPH_SIZE=MOBILE?24:32;
+const LINE_HEIGHT=MOBILE?34:46;
+const MARGIN=12;
+const WAVE_AMPLITUDE=MOBILE?1.2:3;
 const WAVE_SPEED=0.03;
 const GIF_FPS=12;
 const FINAL_HOLD_SECONDS=7;
 
 /* ================= GLYPH MAP ================= */
-const glyphMap={
-a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
-f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
-k:"11.png",l:"12.png",m:"13.png",n:"14.png",o:"15.png",
-p:"16.png",q:"17.png",r:"18.png",s:"19.png",t:"20.png",
-u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
-" ":"space.png","_":"under.png","{":"oBr.png","}":"cBr.png",
-"(":"oB+.png",")":"cB+.png",".":"p.png",";":"semi.png",
-"'":"app.png","=":"eq+.png","/":"fSlash.png","$":"crypto.png",
-"\\":"bSlash.png",":":"colon.png","<":"less.png",">":"more.png",
-"!":"!.png","&":"&.png","|":"or.png","\"":"qu.png","+":"+.png",
-"-":"-.png","`":"bTick.png",",":"ap.png","%":"pp.png",
-"0":"0.png","1":"1_.png","2":"2_.png","3":"3_.png",
-"]":"cSqBr.png","[":"oSqBr.png","4":"4_.png","5":"5_.png",
-"6":"6_.png","7":"7_.png","8":"8_.png","9":"9_.png"
-};
+
+const glyphMap={a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",k:"11.png",l:"12.png",m:"13.png",n:"14.png",o:"15.png",p:"16.png",q:"17.png",r:"18.png",s:"19.png",t:"20.png",u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png"," ":"space.png","_":"under.png","{":"oBr.png","}":"cBr.png","(":"oB+.png",")":"cB+.png",".":"p.png",";":"semi.png","'":"app.png","=":"eq+.png","/":"fSlash.png","$":"crypto.png",":":"colon.png","<":"less.png",">":"more.png","!":"!.png","&":"&.png","|":"or.png","+":"+.png","-":"-.png","`":"bTick.png",",":"ap.png","%":"pp.png","0":"0.png","1":"1_.png","2":"2_.png","3":"3_.png","4":"4_.png","5":"5_.png","6":"6_.png","7":"7_.png","8":"8_.png","9":"9_.png"};
 
 /* ================= STATE ================= */
+
 let encoded=false;
 let glyphCache={};
-let time=0;
-let scrollY=0;
 let typing=true;
 let revealIndex=0;
+let time=0;
+
+/* ================= CANVAS ================= */
 
 const canvas=document.getElementById("canvas");
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const ctx=canvas.getContext("2d",{willReadFrequently:true});
 
-ctx.font="24px monospace";
-ctx.textBaseline="top";
-const input=document.getElementById("input");
+function resizeCanvas(){
+ canvas.width=window.innerWidth*DPR;
+ canvas.height=window.innerHeight*DPR;
+ ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+resizeCanvas();
+window.addEventListener("resize",resizeCanvas);
 
-/* ================= PRELOAD GLYPHS ================= */
-function preloadGlyphs(callback){
-  const keys=Object.keys(glyphMap);
-  let loaded=0;
-  keys.forEach(k=>{
-    const img=new Image();
-    img.src=GLYPH_PATH+glyphMap[k];
-    img.crossOrigin="anonymous";
-    img.onload=()=>{ glyphCache[k]=img; loaded++; if(loaded===keys.length) callback(); };
-    img.onerror=()=>{ glyphCache[k]=null; loaded++; console.warn("Missing glyph:", glyphMap[k]); if(loaded===keys.length) callback(); };
-  });
+/* ================= PRELOAD ================= */
+
+function preloadGlyphs(cb){
+ const keys=Object.keys(glyphMap);
+ let loaded=0;
+ keys.forEach(k=>{
+  const img=new Image();
+  img.src=GLYPH_PATH+glyphMap[k];
+  img.onload=()=>{glyphCache[k]=img;done();}
+  img.onerror=()=>{glyphCache[k]=null;done();}
+ });
+ function done(){loaded++;if(loaded===keys.length)cb();}
 }
 
 /* ================= TRANSLATOR ================= */
-function encodeText(text){
-  return text.split("").map(ch=>glyphMap[ch.toLowerCase()] ? `[${ch.toLowerCase()}]` : ch).join("");
+
+function encodeText(t){
+ return t.split("").map(c=>glyphMap[c.toLowerCase()]?`[${c.toLowerCase()}]`:c).join("");
 }
-function decodeText(text){
-  return text.replace(/\[(.*?)\]/g,(m,p1)=>glyphMap[p1]?p1:m);
+function decodeText(t){
+ return t.replace(/\[(.*?)\]/g,(m,p)=>glyphMap[p]?p:m);
 }
 
 /* ================= DRAW ================= */
-function drawFrame(context,text,localTime){
-  let x=MARGIN;
-  let y=MARGIN-scrollY;
 
-  context.fillStyle="#00ff88";
-  context.shadowColor="#00ff88";
-  context.shadowBlur=10;
+function drawFrame(context,text,t){
+ let x=MARGIN;
+ let y=MARGIN;
 
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    const key=ch.toLowerCase();
-    const waveY=Math.sin(localTime+i*0.35)*WAVE_AMPLITUDE;
+ context.fillStyle="#00ff88";
 
-    if(ch==="\n"){ x=MARGIN; y+=LINE_HEIGHT; continue; }
+ for(let i=0;i<text.length;i++){
 
-    const advance=glyphMap[key]?GLYPH_SIZE:context.measureText(ch).width+2;
-    if(x+advance>canvas.width-MARGIN){ x=MARGIN; y+=LINE_HEIGHT; }
+  const ch=text[i];
+  const key=ch.toLowerCase();
+  const wave=Math.sin(t+i*0.35)*WAVE_AMPLITUDE;
 
-    if(glyphMap[key]){
-      const img=glyphCache[key];
-      if(img && img.complete && img.naturalWidth>0){
-        context.drawImage(img,x,y+waveY,GLYPH_SIZE,GLYPH_SIZE);
-      } else {
-        context.fillStyle="#004422";
-        context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
-      }
-      x+=GLYPH_SIZE;
-    } else {
-      context.fillText(ch,x,y+waveY);
-      x+=context.measureText(ch).width+2;
-    }
+  if(ch=="\n"){x=MARGIN;y+=LINE_HEIGHT;continue;}
+
+  const adv=glyphMap[key]?GLYPH_SIZE:context.measureText(ch).width+2;
+  if(x+adv>window.innerWidth-MARGIN){x=MARGIN;y+=LINE_HEIGHT;}
+
+  if(glyphMap[key]){
+   const img=glyphCache[key];
+   if(img) context.drawImage(img,x,y+wave,GLYPH_SIZE,GLYPH_SIZE);
+   else context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+   x+=GLYPH_SIZE;
+  }else{
+   context.fillText(ch,x,y+wave);
+   x+=context.measureText(ch).width+2;
   }
+ }
 }
 
-/* ================= MAIN LOOP ================= */
+/* ================= LOOP ================= */
+
 function render(){
-  ctx.fillStyle="black";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  const decodedStream=decodeText(input.value);
-  if(typing) revealIndex+=parseInt(document.getElementById("speed").value)/4;
-  const text=decodedStream.slice(0,Math.floor(revealIndex));
-  drawFrame(ctx,text,time);
+ ctx.fillStyle="#000";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  time+=WAVE_SPEED;
-  requestAnimationFrame(render);
+ const text=decodeText(document.getElementById("input").value);
+
+ if(typing) revealIndex+=parseInt(document.getElementById("speed").value)/4;
+
+ drawFrame(ctx,text.slice(0,Math.floor(revealIndex)),time);
+
+ time+=WAVE_SPEED;
+ requestAnimationFrame(render);
 }
 
 /* ================= GIF EXPORT ================= */
-async function exportGIF(){
- // const gif=new GIF({ workers:2, quality:10, workerScript:"https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js" });
-const gif = new GIF({
-    workers: 2,
-    quality: 10,
-    workerScript: "./gif.worker.js"
+
+function exportGIF(){
+
+const gif=new GIF({
+ workers:2,
+ quality:10,
+ workerScript:"./gif.worker.js"
 });
-  
-  const off = document.createElement("canvas");
-  off.width = canvas.width; 
-  off.height = canvas.height;
-  const octx = off.getContext("2d", { willReadFrequently: true });
-  
-  octx.font="24px monospace"; octx.textBaseline="top";
 
-  const text=decodeText(input.value);
-  let localTime=0;
+const off=document.createElement("canvas");
+off.width=canvas.width/DPR;
+off.height=canvas.height/DPR;
+const octx=off.getContext("2d",{willReadFrequently:true});
 
-  for(let i=1;i<=text.length;i++){
-    octx.fillStyle="black";
-    octx.fillRect(0,0,off.width,off.height);
-    drawFrame(octx,text.slice(0,i),localTime);
-    gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
-    localTime+=WAVE_SPEED*4;
-  }
+const text=decodeText(document.getElementById("input").value);
+let localTime=0;
 
-  const holdFrames=FINAL_HOLD_SECONDS*GIF_FPS;
-  for(let i=0;i<holdFrames;i++){
-    octx.fillStyle="black";
-    octx.fillRect(0,0,off.width,off.height);
-    drawFrame(octx,text,localTime);
-    gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
-    localTime+=WAVE_SPEED*2;
-  }
+for(let i=1;i<=text.length;i++){
+ octx.fillStyle="#000";
+ octx.fillRect(0,0,off.width,off.height);
+ drawFrame(octx,text.slice(0,i),localTime);
+ gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
+ localTime+=0.1;
+}
 
-  gif.on("finished",blob=>{
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="glyph-terminal.gif";
-    a.click();
-  });
-  gif.render();
+gif.on("finished",b=>{
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(b);
+ a.download="glyph-terminal.gif";
+ a.click();
+});
+
+gif.render();
 }
 
 /* ================= CONTROLS ================= */
+
 document.getElementById("toggle").onclick=()=>{
-  if(encoded){ input.value=decodeText(input.value); } 
-  else { input.value=encodeText(input.value); }
-  encoded=!encoded; revealIndex=0;
+ const input=document.getElementById("input");
+ input.value=encoded?decodeText(input.value):encodeText(input.value);
+ encoded=!encoded;revealIndex=0;
 };
+
 document.getElementById("typeToggle").onclick=()=>typing=!typing;
 document.getElementById("export").onclick=exportGIF;
 
-/* ================= START ================= */
-preloadGlyphs(()=>{ 
-  console.log("All glyphs preloaded (or fallback placeholders)."); 
-  render(); 
+/* ================= MOBILE UX ================= */
+
+document.getElementById("controls").addEventListener("dblclick",()=>{
+ document.getElementById("controls").classList.toggle("collapsed");
 });
+
+canvas.addEventListener("dblclick",()=>{
+ revealIndex=0;
+});
+
+/* ================= START ================= */
+
+preloadGlyphs(()=>{render();});
 
 </script>
 </body>
