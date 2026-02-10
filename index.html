@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal v3 Runtime Engine</title>
+<title>Glyph Terminal v2.5</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 
@@ -17,10 +17,12 @@ canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;
 <body>
 
 <div id="controls">
-<textarea id="input">Welcome to Glyph Terminal v3
+<textarea id="input">Welcome to the NFT Terminal.
+GIF Export now works.
+Typewriter glyph animation included.
 { hello_world | web3 }</textarea>
 
-<button id="translate">Encode / Decode</button>
+<button id="toggle">Encode / Decode Translator</button>
 <button id="typeToggle">Play / Pause Typing</button>
 <input id="speed" type="range" min="1" max="10" value="4">
 <button id="export">Export GIF</button>
@@ -31,28 +33,16 @@ canvas{display:block;margin:10px auto;border:1px solid #00ff88;background:black;
 <script>
 
 /* ================= CONFIG ================= */
-
-const IPFS_GATEWAYS=[
-"https://gold-junior-swordfish-840.mypinata.cloud/ipfs/",
-"https://ipfs.io/ipfs/"
-];
-
-const CID="bafybeihfhw67vjcqvw4lhhsk7qzv7musub23k2mzqk3p7cdh2yxoremnfe";
-
+const GLYPH_PATH="./glyphs/";
 const GLYPH_SIZE=32;
 const LINE_HEIGHT=46;
 const MARGIN=20;
+const WAVE_AMPLITUDE=3;
 const WAVE_SPEED=0.03;
 const GIF_FPS=12;
-
-/* ================= SAFE URL BUILDER ================= */
-
-function buildGlyphURL(filename,gateway){
- return gateway+CID+"/"+encodeURIComponent(filename);
-}
+const FINAL_HOLD_SECONDS=7;
 
 /* ================= GLYPH MAP ================= */
-
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
 f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
@@ -62,21 +52,21 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 " ":"space.png","_":"under.png","{":"oBr.png","}":"cBr.png",
 "(":"oB+.png",")":"cB+.png",".":"p.png",";":"semi.png",
 "'":"app.png","=":"eq+.png","/":"fSlash.png","$":"crypto.png",
- ":":"colon.png","<":"less.png",">":"more.png",
+"\\":"cbSlash.png",":":"colon.png","<":"less.png",">":"more.png",
 "!":"!.png","&":"&.png","|":"or.png","\"":"qu.png","+":"+.png",
-"-":"-.png","`":"bTick.png",",":"ap.png","%":"%p.png",
+"-":"-.png","`":"bTick.png",",":"ap.png","%":"%.png",
 "0":"0.png","1":"_1.png","2":"_2.png","3":"_3.png",
 "]":"cSqBr.png","[":"oSqBr.png","4":"_4.png","5":"_5.png",
 "6":"_6.png","7":"_7.png","8":"_8.png","9":"_9.png"
 };
 
 /* ================= STATE ================= */
-
 let encoded=false;
 let glyphCache={};
+let time=0;
+let scrollY=0;
 let typing=true;
 let revealIndex=0;
-let time=0;
 
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
@@ -84,180 +74,92 @@ ctx.font="24px monospace";
 ctx.textBaseline="top";
 const input=document.getElementById("input");
 
-/* ================= PRELOAD ================= */
-
-function preloadGlyphs(callback){
-
- const keys=Object.keys(glyphMap);
- let loaded=0;
-
- keys.forEach(k=>{
-
-  const filename=glyphMap[k];
-  const img=new Image();
-  img.crossOrigin="anonymous";
-
-  let gatewayIndex=0;
-
-  function tryLoad(){
-
-   if(gatewayIndex>=IPFS_GATEWAYS.length){
-    loaded++;
-    if(loaded===keys.length) callback();
-    return;
-   }
-
-   img.src=buildGlyphURL(filename,IPFS_GATEWAYS[gatewayIndex]);
-
-   img.onload=()=>{
-    glyphCache[k]=img;
-    loaded++;
-    if(loaded===keys.length) callback();
-   };
-
-   img.onerror=()=>{
-    gatewayIndex++;
-    tryLoad();
-   };
-
-  }
-
-  tryLoad();
-
- });
-
-}
-
-/* ================= TRANSLATOR ================= */
+/* ================= TRANSLATOR ENGINE ================= */
 
 function encodeText(text){
  return text.split("").map(ch=>{
-  const k=ch.toLowerCase();
-  return glyphMap[k]?`[${k}]`:ch;
+   const key=ch.toLowerCase();
+   return glyphMap[key] ? `[${key}]` : ch;
  }).join("");
 }
 
-function decodeTokens(text){
+function decodeText(text){
  return text.replace(/\[(.*?)\]/g,(m,p1)=>glyphMap[p1]?p1:m);
 }
 
-function tokenize(text){
- let tokens=[];
- const regex=/\[(.*?)\]/g;
- let lastIndex=0;
- let match;
-
- while((match=regex.exec(text))){
-  if(match.index>lastIndex){
-   tokens.push(...text.slice(lastIndex,match.index).split(""));
-  }
-  tokens.push(match[1]);
-  lastIndex=regex.lastIndex;
- }
-
- if(lastIndex<text.length){
-  tokens.push(...text.slice(lastIndex).split(""));
- }
-
- return tokens;
+function renderDecodeStream(text){
+ return decodeText(text);
 }
 
-/* ================= GLYPH ================= */
-
-class Glyph{
-
- constructor(char,index){
-  this.char=char;
-  this.index=index;
-  this.state=Math.random()<0.1?"glitch":"pulse";
+/* ================= GLYPH LOADER ================= */
+function loadGlyph(c){
+ if(!glyphCache[c]){
+  const img=new Image();
+  img.src=GLYPH_PATH+glyphMap[c];
+  glyphCache[c]=img;
  }
-
- draw(context,x,y,t){
-
-  let offsetY=0;
-  let scale=1;
-
-  if(this.state==="pulse"){
-   scale=1+Math.sin(t+this.index*0.3)*0.05;
-  }
-
-  if(this.state==="glitch"){
-   offsetY=(Math.random()-0.5)*4;
-  }
-
-  if(glyphMap[this.char]){
-
-   const img=glyphCache[this.char];
-
-   if(img && img.complete && img.naturalWidth>0){
-
-    context.drawImage(
-     img,
-     x,
-     y+offsetY,
-     GLYPH_SIZE*scale,
-     GLYPH_SIZE*scale
-    );
-
-   }else{
-
-    context.fillStyle="#004422";
-    context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
-
-   }
-
-  }else{
-
-   context.fillStyle="#00ff88";
-   context.fillText(this.char,x,y+offsetY);
-
-  }
-
- }
+ return glyphCache[c];
 }
 
-/* ================= RENDER ================= */
+/* ================= DRAW FUNCTION ================= */
+function drawFrame(context,text,localTime){
 
-function render(){
+let x=MARGIN;
+let y=MARGIN-scrollY;
 
- ctx.fillStyle="black";
- ctx.fillRect(0,0,canvas.width,canvas.height);
+context.fillStyle="#00ff88";
+context.shadowColor="#00ff88";
+context.shadowBlur=10;
 
- const raw=input.value;
- const decoded=decodeTokens(raw);
- const tokens=tokenize(encoded?raw:decoded);
+for(let i=0;i<text.length;i++){
 
- if(typing){
-  revealIndex+=parseInt(document.getElementById("speed").value)/4;
- }
+ const ch=text[i];
+ const key=ch.toLowerCase();
+ const waveY=Math.sin(localTime+i*0.35)*WAVE_AMPLITUDE;
 
- let visible=tokens.slice(0,Math.floor(revealIndex));
+ if(ch==="\n"){x=MARGIN;y+=LINE_HEIGHT;continue;}
 
- let x=MARGIN;
- let y=MARGIN;
+ const advance=glyphMap[key]
+   ?GLYPH_SIZE
+   :context.measureText(ch).width+2;
 
- visible.forEach((tk,i)=>{
-
-  if(tk==="\n"){x=MARGIN;y+=LINE_HEIGHT;return;}
-
-  const glyph=new Glyph(tk,i);
-  glyph.draw(ctx,x,y,time);
-
-  x+=GLYPH_SIZE;
-
-  if(x>canvas.width-MARGIN){
+ if(x+advance>canvas.width-MARGIN){
    x=MARGIN;
    y+=LINE_HEIGHT;
-  }
+ }
 
- });
-
- time+=WAVE_SPEED;
- requestAnimationFrame(render);
+ if(glyphMap[key]){
+   const img=loadGlyph(key);
+   context.drawImage(img,x,y+waveY,GLYPH_SIZE,GLYPH_SIZE);
+   x+=GLYPH_SIZE;
+ }else{
+   context.fillText(ch,x,y+waveY);
+   x+=context.measureText(ch).width+2;
+ }
+}
 }
 
-/* ================= GIF EXPORT ================= */
+/* ================= MAIN LOOP ================= */
+function render(){
 
+ctx.fillStyle="black";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+const decodedStream=renderDecodeStream(input.value);
+
+if(typing){
+ revealIndex+=parseInt(document.getElementById("speed").value)/4;
+}
+
+const text=decodedStream.slice(0,Math.floor(revealIndex));
+drawFrame(ctx,text,time);
+
+time+=WAVE_SPEED;
+requestAnimationFrame(render);
+}
+render();
+
+/* ================= GIF EXPORT ================= */
 async function exportGIF(){
 
 const gif=new GIF({
@@ -270,42 +172,33 @@ const off=document.createElement("canvas");
 off.width=canvas.width;
 off.height=canvas.height;
 const octx=off.getContext("2d");
+octx.font="24px monospace";
+octx.textBaseline="top";
 
-const tokens=tokenize(encoded?input.value:decodeTokens(input.value));
-
+const text=renderDecodeStream(input.value);
 let localTime=0;
 
-for(let i=1;i<=tokens.length;i++){
-
+for(let i=1;i<=text.length;i++){
 octx.fillStyle="black";
 octx.fillRect(0,0,off.width,off.height);
-
-let x=MARGIN,y=MARGIN;
-
-tokens.slice(0,i).forEach((tk,index)=>{
-
- if(tk==="\n"){x=MARGIN;y+=LINE_HEIGHT;return;}
-
- const g=new Glyph(tk,index);
- g.draw(octx,x,y,localTime);
-
- x+=GLYPH_SIZE;
-
- if(x>off.width-MARGIN){
-  x=MARGIN;
-  y+=LINE_HEIGHT;
- }
-
-});
-
+drawFrame(octx,text.slice(0,i),localTime);
 gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
-localTime+=0.1;
+localTime+=WAVE_SPEED*4;
+}
+
+const holdFrames=FINAL_HOLD_SECONDS*GIF_FPS;
+for(let i=0;i<holdFrames;i++){
+octx.fillStyle="black";
+octx.fillRect(0,0,off.width,off.height);
+drawFrame(octx,text,localTime);
+gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
+localTime+=WAVE_SPEED*2;
 }
 
 gif.on("finished",blob=>{
 const a=document.createElement("a");
 a.href=URL.createObjectURL(blob);
-a.download="glyph-terminal-v3.gif";
+a.download="glyph-terminal.gif";
 a.click();
 });
 
@@ -313,12 +206,11 @@ gif.render();
 }
 
 /* ================= CONTROLS ================= */
-
-document.getElementById("translate").onclick=()=>{
+document.getElementById("toggle").onclick=()=>{
  if(encoded){
-  input.value=decodeTokens(input.value);
+   input.value=decodeText(input.value);
  }else{
-  input.value=encodeText(input.value);
+   input.value=encodeText(input.value);
  }
  encoded=!encoded;
  revealIndex=0;
@@ -326,13 +218,6 @@ document.getElementById("translate").onclick=()=>{
 
 document.getElementById("typeToggle").onclick=()=>typing=!typing;
 document.getElementById("export").onclick=exportGIF;
-
-/* ================= START ================= */
-
-preloadGlyphs(()=>{
- console.log("All glyphs preloaded.");
- render();
-});
 
 </script>
 </body>
