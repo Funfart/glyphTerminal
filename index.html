@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal v2.5</title>
+<title>Glyph Terminal v2.6</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 
@@ -74,152 +74,128 @@ ctx.font="24px monospace";
 ctx.textBaseline="top";
 const input=document.getElementById("input");
 
-/* ================= TRANSLATOR ENGINE ================= */
+/* ================= PRELOAD GLYPHS ================= */
+function preloadGlyphs(callback){
+  const keys=Object.keys(glyphMap);
+  let loaded=0;
+  keys.forEach(k=>{
+    const img=new Image();
+    img.src=GLYPH_PATH+glyphMap[k];
+    img.crossOrigin="anonymous";
+    img.onload=()=>{ glyphCache[k]=img; loaded++; if(loaded===keys.length) callback(); };
+    img.onerror=()=>{ glyphCache[k]=null; loaded++; console.warn("Missing glyph:", glyphMap[k]); if(loaded===keys.length) callback(); };
+  });
+}
 
+/* ================= TRANSLATOR ================= */
 function encodeText(text){
- return text.split("").map(ch=>{
-   const key=ch.toLowerCase();
-   return glyphMap[key] ? `[${key}]` : ch;
- }).join("");
+  return text.split("").map(ch=>glyphMap[ch.toLowerCase()] ? `[${ch.toLowerCase()}]` : ch).join("");
 }
-
 function decodeText(text){
- return text.replace(/\[(.*?)\]/g,(m,p1)=>glyphMap[p1]?p1:m);
+  return text.replace(/\[(.*?)\]/g,(m,p1)=>glyphMap[p1]?p1:m);
 }
 
-function renderDecodeStream(text){
- return decodeText(text);
-}
-
-/* ================= GLYPH LOADER ================= */
-function loadGlyph(c){
- if(!glyphCache[c]){
-  const img=new Image();
-  img.src=GLYPH_PATH+glyphMap[c];
-  glyphCache[c]=img;
- }
- return glyphCache[c];
-}
-
-/* ================= DRAW FUNCTION ================= */
+/* ================= DRAW ================= */
 function drawFrame(context,text,localTime){
+  let x=MARGIN;
+  let y=MARGIN-scrollY;
 
-let x=MARGIN;
-let y=MARGIN-scrollY;
+  context.fillStyle="#00ff88";
+  context.shadowColor="#00ff88";
+  context.shadowBlur=10;
 
-context.fillStyle="#00ff88";
-context.shadowColor="#00ff88";
-context.shadowBlur=10;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    const key=ch.toLowerCase();
+    const waveY=Math.sin(localTime+i*0.35)*WAVE_AMPLITUDE;
 
-for(let i=0;i<text.length;i++){
+    if(ch==="\n"){ x=MARGIN; y+=LINE_HEIGHT; continue; }
 
- const ch=text[i];
- const key=ch.toLowerCase();
- const waveY=Math.sin(localTime+i*0.35)*WAVE_AMPLITUDE;
+    const advance=glyphMap[key]?GLYPH_SIZE:context.measureText(ch).width+2;
+    if(x+advance>canvas.width-MARGIN){ x=MARGIN; y+=LINE_HEIGHT; }
 
- if(ch==="\n"){x=MARGIN;y+=LINE_HEIGHT;continue;}
-
- const advance=glyphMap[key]
-   ?GLYPH_SIZE
-   :context.measureText(ch).width+2;
-
- if(x+advance>canvas.width-MARGIN){
-   x=MARGIN;
-   y+=LINE_HEIGHT;
- }
-
- if(glyphMap[key]){
-   const img=loadGlyph(key);
-   context.drawImage(img,x,y+waveY,GLYPH_SIZE,GLYPH_SIZE);
-   x+=GLYPH_SIZE;
- }else{
-   context.fillText(ch,x,y+waveY);
-   x+=context.measureText(ch).width+2;
- }
-}
+    if(glyphMap[key]){
+      const img=glyphCache[key];
+      if(img && img.complete && img.naturalWidth>0){
+        context.drawImage(img,x,y+waveY,GLYPH_SIZE,GLYPH_SIZE);
+      } else {
+        context.fillStyle="#004422";
+        context.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+      }
+      x+=GLYPH_SIZE;
+    } else {
+      context.fillText(ch,x,y+waveY);
+      x+=context.measureText(ch).width+2;
+    }
+  }
 }
 
 /* ================= MAIN LOOP ================= */
 function render(){
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-ctx.fillStyle="black";
-ctx.fillRect(0,0,canvas.width,canvas.height);
+  const decodedStream=decodeText(input.value);
+  if(typing) revealIndex+=parseInt(document.getElementById("speed").value)/4;
+  const text=decodedStream.slice(0,Math.floor(revealIndex));
+  drawFrame(ctx,text,time);
 
-const decodedStream=renderDecodeStream(input.value);
-
-if(typing){
- revealIndex+=parseInt(document.getElementById("speed").value)/4;
+  time+=WAVE_SPEED;
+  requestAnimationFrame(render);
 }
-
-const text=decodedStream.slice(0,Math.floor(revealIndex));
-drawFrame(ctx,text,time);
-
-time+=WAVE_SPEED;
-requestAnimationFrame(render);
-}
-render();
 
 /* ================= GIF EXPORT ================= */
 async function exportGIF(){
+  const gif=new GIF({ workers:2, quality:10, workerScript:"https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js" });
+  const off=document.createElement("canvas");
+  off.width=canvas.width; off.height=canvas.height;
+  const octx=off.getContext("2d");
+  octx.font="24px monospace"; octx.textBaseline="top";
 
-const gif=new GIF({
-workers:2,
-quality:10,
-workerScript:"https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js"
-});
+  const text=decodeText(input.value);
+  let localTime=0;
 
-const off=document.createElement("canvas");
-off.width=canvas.width;
-off.height=canvas.height;
-const octx=off.getContext("2d");
-octx.font="24px monospace";
-octx.textBaseline="top";
+  for(let i=1;i<=text.length;i++){
+    octx.fillStyle="black";
+    octx.fillRect(0,0,off.width,off.height);
+    drawFrame(octx,text.slice(0,i),localTime);
+    gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
+    localTime+=WAVE_SPEED*4;
+  }
 
-const text=renderDecodeStream(input.value);
-let localTime=0;
+  const holdFrames=FINAL_HOLD_SECONDS*GIF_FPS;
+  for(let i=0;i<holdFrames;i++){
+    octx.fillStyle="black";
+    octx.fillRect(0,0,off.width,off.height);
+    drawFrame(octx,text,localTime);
+    gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
+    localTime+=WAVE_SPEED*2;
+  }
 
-for(let i=1;i<=text.length;i++){
-octx.fillStyle="black";
-octx.fillRect(0,0,off.width,off.height);
-drawFrame(octx,text.slice(0,i),localTime);
-gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
-localTime+=WAVE_SPEED*4;
-}
-
-const holdFrames=FINAL_HOLD_SECONDS*GIF_FPS;
-for(let i=0;i<holdFrames;i++){
-octx.fillStyle="black";
-octx.fillRect(0,0,off.width,off.height);
-drawFrame(octx,text,localTime);
-gif.addFrame(off,{copy:true,delay:1000/GIF_FPS});
-localTime+=WAVE_SPEED*2;
-}
-
-gif.on("finished",blob=>{
-const a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="glyph-terminal.gif";
-a.click();
-});
-
-gif.render();
+  gif.on("finished",blob=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="glyph-terminal.gif";
+    a.click();
+  });
+  gif.render();
 }
 
 /* ================= CONTROLS ================= */
 document.getElementById("toggle").onclick=()=>{
- if(encoded){
-   input.value=decodeText(input.value);
- }else{
-   input.value=encodeText(input.value);
- }
- encoded=!encoded;
- revealIndex=0;
+  if(encoded){ input.value=decodeText(input.value); } 
+  else { input.value=encodeText(input.value); }
+  encoded=!encoded; revealIndex=0;
 };
-
 document.getElementById("typeToggle").onclick=()=>typing=!typing;
 document.getElementById("export").onclick=exportGIF;
+
+/* ================= START ================= */
+preloadGlyphs(()=>{ 
+  console.log("All glyphs preloaded (or fallback placeholders)."); 
+  render(); 
+});
 
 </script>
 </body>
 </html>
-
