@@ -94,6 +94,21 @@ canvas{
   background:#00ff88 !important;
   color:black !important;
 }
+
+  /* ADD THIS */
+.key{
+  position:relative;
+}
+
+/* small top-right symbol */
+.key .alt{
+  position:absolute;
+  top:2px;
+  right:4px;
+  font-size:10px;
+  opacity:0.6;
+  pointer-events:none;
+}
 </style>
 </head>
 
@@ -102,7 +117,7 @@ canvas{
 <div id="device">
 
 <div id="screen">
-<textarea id="input">hello web3 world</textarea>
+<textarea id="input">hello web3 world!</textarea>
 <canvas id="canvas" width="760" height="380"></canvas>
 </div>
 
@@ -126,7 +141,11 @@ const shiftMap={
 "-":"_","=":"+",
 ".":">",",":"<"
 };
-
+const displayShiftMap={
+"1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
+"-":"_","=":"+",
+".":">",",":"<"
+};
 /* ================= GLYPH MAP ================= */
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
@@ -252,8 +271,24 @@ const kb=document.getElementById("keyboard");
   r.split("").forEach(k=>{
     const b=document.createElement("div");
     b.className="key";
-    b.innerText=k;
+
+    const main=document.createElement("div");
+    main.className="main";
+    main.innerText=k;
+
+    // ALT SYMBOL (top-right)
+    if(displayShiftMap[k]){
+      const alt=document.createElement("div");
+      alt.className="alt";
+      alt.innerText=displayShiftMap[k];
+      b.appendChild(alt);
+    }
+
+    b.appendChild(main);
+
     b.onclick=()=>writeKey(k);
+
+    b.dataset.base=k; // store original key
     row.appendChild(b);
   });
 
@@ -270,6 +305,20 @@ shiftBtn.innerText="SHIFT";
 shiftBtn.onclick=()=>{
   shift=!shift;
   shiftBtn.classList.toggle("shiftActive",shift);
+
+  // UPDATE KEY LABELS
+  document.querySelectorAll(".key").forEach(btn=>{
+    if(!btn.dataset.base) return;
+
+    const base=btn.dataset.base;
+    const main=btn.querySelector(".main");
+
+    if(shift && displayShiftMap[base]){
+      main.innerText=displayShiftMap[base];
+    } else {
+      main.innerText=base;
+    }
+  });
 };
 
 const space=document.createElement("div");
