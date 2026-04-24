@@ -52,21 +52,6 @@ textarea{
   font-size:14px;
 }
 
-/* ===== CURSOR OVERLAY ===== */
-#cursor{
-  position:absolute;
-  top:140px;
-  left:14px;
-  width:10px;
-  height:18px;
-  background:#00ff88;
-  animation:blink 0.5s infinite;
-}
-
-@keyframes blink{
-  50%{opacity:0;}
-}
-
 canvas{
   flex:1;
   margin-top:6px;
@@ -92,15 +77,19 @@ canvas{
 /* ===== KEYBOARD ===== */
 #keyboard{
   margin-top:10px;
-  display:grid;
-  grid-template-columns: repeat(10,1fr);
+  display:flex;
+  flex-direction:column;
   gap:6px;
+  max-height:240px;
+  overflow:hidden;
 }
 
-/* ROW FIXED KEYS */
-.row2{ grid-column: span 9; display:grid; grid-template-columns: repeat(9,1fr); gap:6px;}
-.row3{ grid-column: span 7; display:grid; grid-template-columns: repeat(7,1fr); gap:6px;}
-.row4{ grid-column: span 3; display:grid; grid-template-columns: repeat(3,1fr); gap:6px;}
+/* ROWS */
+.row{
+  display:grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap:6px;
+}
 
 .key{
   background:#111;
@@ -120,7 +109,6 @@ canvas{
   color:black;
 }
 
-/* SPACE */
 .space{
   grid-column: span 4;
 }
@@ -133,7 +121,6 @@ canvas{
 
   <div id="screen">
     <textarea id="input">hello web3 world</textarea>
-    <div id="cursor"></div>
     <canvas id="canvas" width="760" height="380"></canvas>
   </div>
 
@@ -155,7 +142,7 @@ const GLYPH_SIZE=28;
 const WAVE_AMPLITUDE=3;
 const WAVE_SPEED=0.03;
 
-/* ================= FULL GLYPH MAP ================= */
+/* ================= GLYPH MAP ================= */
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
 f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
@@ -180,6 +167,7 @@ const input=document.getElementById("input");
 function preload(cb){
   let loaded=0;
   const keys=Object.keys(glyphMap);
+
   keys.forEach(k=>{
     const img=new Image();
     img.src=GLYPH_PATH+glyphMap[k];
@@ -189,13 +177,6 @@ function preload(cb){
     };
   });
 }
-
-/* ================= CURSOR BLINK ================= */
-let cursorPos=0;
-setInterval(()=>{
-  document.getElementById("cursor").style.opacity=
-    document.getElementById("cursor").style.opacity==="0"?"1":"0";
-},500);
 
 /* ================= DRAW ================= */
 function draw(text){
@@ -220,6 +201,23 @@ function draw(text){
       x+=GLYPH_SIZE;
     }
   }
+
+  /* ===== CURSOR (FIXED + SYNCHRONIZED) ===== */
+  let cx=10, cy=10;
+  const before=input.value.slice(0,Math.floor(revealIndex));
+
+  for(let i=0;i<before.length;i++){
+    const ch=before[i];
+    if(ch===" "){ cx+=GLYPH_SIZE; continue; }
+    if(glyphCache[ch]) cx+=GLYPH_SIZE;
+  }
+
+  const blink=Math.floor(Date.now()/500)%2;
+
+  if(blink){
+    ctx.fillStyle="#00ff88";
+    ctx.fillRect(cx,cy,3,GLYPH_SIZE);
+  }
 }
 
 /* ================= LOOP ================= */
@@ -230,39 +228,50 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ================= HOLD KEY LOGIC ================= */
-let holdInterval=null;
-function holdKey(k){
+/* ================= HOLD INPUT (FIXED) ================= */
+let holdTimer=null;
+let holding=false;
+
+function startHold(k){
+  if(holding) return;
+  holding=true;
+
   input.value+=k;
-  holdInterval=setInterval(()=>input.value+=k,120);
+
+  holdTimer=setInterval(()=>{
+    input.value+=k;
+  },140);
 }
-function stopHold(){ clearInterval(holdInterval); }
+
+function stopHold(){
+  holding=false;
+  clearInterval(holdTimer);
+}
 
 /* ================= KEYBOARD ================= */
 const layout=[
-["1","2","3","4","5","6","7","8","9","0"],
-["q","w","e","r","t","y","u","i","o","p"],
-["a","s","d","f","g","h","j","k","l"],
-["z","x","c","v","b","n","m"],
-[".",",","-","/","'",";","="]
+"1234567890",
+"qwertyuiop",
+"asdfghjkl",
+"zxcvbnm",
+".,-/'= "
 ];
 
 const kb=document.getElementById("keyboard");
 
 layout.forEach(row=>{
   const r=document.createElement("div");
-  r.className="row2";
+  r.className="row";
 
-  row.forEach(k=>{
+  row.split("").forEach(k=>{
     const btn=document.createElement("div");
     btn.className="key";
     btn.innerText=k;
 
-    btn.onmousedown=()=>holdKey(k);
+    btn.onmousedown=()=>startHold(k);
     btn.onmouseup=stopHold;
     btn.onmouseleave=stopHold;
 
-    btn.onclick=()=>input.value+=k;
     r.appendChild(btn);
   });
 
