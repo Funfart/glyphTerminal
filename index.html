@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal Pro</title>
+<title>Glyph Terminal Device</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 
@@ -17,60 +17,46 @@ body{
   font-family:monospace;
 }
 
+/* DEVICE */
 #device{
   width:800px;
   height:800px;
   background:linear-gradient(145deg,#0f0f18,#050508);
   border-radius:25px;
   box-shadow:0 0 40px #00ff88aa inset;
-  padding:12px;
+  padding:15px;
   display:flex;
   flex-direction:column;
 }
 
 /* SCREEN */
 #screen{
+  flex:1;
   background:black;
   border-radius:12px;
-  padding:8px;
+  padding:10px;
   box-shadow:inset 0 0 15px #00ff88;
 }
 
 textarea{
   width:100%;
-  height:90px;
+  height:110px;
   background:transparent;
   border:none;
   color:#00ff88;
-  resize:none;
   outline:none;
+  resize:none;
 }
 
+/* CANVAS */
 canvas{
   width:100%;
-  height:300px;
-  margin-top:5px;
-}
-
-/* CONTROLS */
-#controls{
-  display:flex;
-  gap:5px;
-  margin-top:6px;
-}
-.ctrlBtn{
-  flex:1;
-  padding:6px;
-  border:1px solid #00ff88;
-  background:#111;
-  color:#00ff88;
-  border-radius:6px;
-  cursor:pointer;
+  height:260px;
 }
 
 /* KEYBOARD */
 #keyboard{
-  margin-top:8px;
+  margin-top:10px;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -84,13 +70,13 @@ canvas{
 }
 
 .key{
-  min-width:38px;
+  min-width:45px;
   padding:10px;
   text-align:center;
   border-radius:8px;
   border:1px solid #00ff88;
-  background:#111;
   color:#00ff88;
+  background:#111;
   cursor:pointer;
   user-select:none;
   transition:0.1s;
@@ -103,9 +89,8 @@ canvas{
   box-shadow:0 0 10px #00ff88;
 }
 
-.wide{min-width:80px;}
-.xwide{min-width:160px;}
-
+.key.wide{min-width:90px;}
+.key.space{min-width:300px;}
 </style>
 </head>
 
@@ -113,24 +98,18 @@ canvas{
 
 <div id="device">
 
-  <div id="screen">
-    <textarea id="input">hello web3</textarea>
-    <canvas id="canvas" width="760" height="300"></canvas>
-  </div>
+<div id="screen">
+<textarea id="input">hello web3</textarea>
+<canvas id="canvas" width="760" height="260"></canvas>
+</div>
 
-  <div id="controls">
-    <button class="ctrlBtn" id="toggle">Encode</button>
-    <button class="ctrlBtn" id="typeToggle">Play</button>
-    <button class="ctrlBtn" id="export">GIF</button>
-  </div>
-
-  <div id="keyboard"></div>
+<div id="keyboard"></div>
 
 </div>
 
 <script>
 
-/* ================= FULL GLYPH MAP ================= */
+/* ================= GLYPH MAP ================= */
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
 f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
@@ -148,63 +127,38 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 "6":"6_.png","7":"7_.png","8":"8_.png","9":"9_.png"
 };
 
-const GLYPH_PATH="./glyphs/";
-const glyphCache={};
+/* ================= STATE ================= */
+const input=document.getElementById("input");
+let cursorPos=input.value.length;
 
-/* ================= PRELOAD ================= */
-function preload(cb){
-  let total=Object.keys(glyphMap).length, loaded=0;
-  for(let k in glyphMap){
-    const img=new Image();
-    img.src=GLYPH_PATH+glyphMap[k];
-    img.onload=()=>{glyphCache[k]=img; if(++loaded===total) cb();}
-    img.onerror=()=>{glyphCache[k]=null; if(++loaded===total) cb();}
-  }
+/* ================= CURSOR INSERT ================= */
+function insertChar(char){
+  const val=input.value;
+  input.value=val.slice(0,cursorPos)+char+val.slice(cursorPos);
+  cursorPos++;
 }
 
-/* ================= DRAW ================= */
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-let time=0, revealIndex=0, typing=true;
-
-function draw(text){
-  ctx.fillStyle="black";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  let x=10,y=10;
-
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    const img=glyphCache[ch];
-
-    const wave=Math.sin(time+i*0.3)*3;
-
-    if(ch===" "){x+=28; continue;}
-
-    if(img){
-      ctx.drawImage(img,x,y+wave,28,28);
-      x+=28;
-    }
-  }
+function backspace(){
+  if(cursorPos===0) return;
+  const val=input.value;
+  input.value=val.slice(0,cursorPos-1)+val.slice(cursorPos);
+  cursorPos--;
 }
 
-function loop(){
-  if(typing) revealIndex+=0.5;
-  const txt=input.value.slice(0,revealIndex);
-  draw(txt);
-  time+=0.03;
-  requestAnimationFrame(loop);
+function moveCursor(dir){
+  if(dir==="left") cursorPos=Math.max(0,cursorPos-1);
+  if(dir==="right") cursorPos=Math.min(input.value.length,cursorPos+1);
 }
 
-/* ================= HOLD INPUT ================= */
-let holdInterval=null;
-
-function startHold(char){
-  input.value+=char;
-  holdInterval=setInterval(()=>input.value+=char,100);
-}
-function stopHold(){
-  clearInterval(holdInterval);
+/* ================= HOLD REPEAT ================= */
+function addHold(btn,fn){
+  let interval;
+  btn.onmousedown=()=>{
+    fn();
+    interval=setInterval(fn,100);
+  };
+  btn.onmouseup=()=>clearInterval(interval);
+  btn.onmouseleave=()=>clearInterval(interval);
 }
 
 /* ================= KEYBOARD LAYOUT ================= */
@@ -213,60 +167,70 @@ const layout=[
 ["q","w","e","r","t","y","u","i","o","p"],
 ["a","s","d","f","g","h","j","k","l"],
 ["z","x","c","v","b","n","m"],
-[".",";",":","!","?","/","\\","-","_","+","="],
-["[","]","{","}","(",")","<",">","$","%","&","|"],
-["'","\"","`",","]
+["-","=","[","]",";","'","\\",",",".","/"],
+["space","⌫","←","→"]
 ];
 
 const kb=document.getElementById("keyboard");
 
 layout.forEach(row=>{
-  const rowDiv=document.createElement("div");
-  rowDiv.className="row";
+  const r=document.createElement("div");
+  r.className="row";
 
   row.forEach(k=>{
     const btn=document.createElement("div");
     btn.className="key";
     btn.innerText=k;
 
-    btn.onmousedown=()=>startHold(k);
-    btn.onmouseup=stopHold;
-    btn.onmouseleave=stopHold;
+    if(k==="space"){ btn.classList.add("space"); }
+    if(k==="⌫"){ btn.classList.add("wide"); }
 
-    rowDiv.appendChild(btn);
+    if(k==="space") addHold(btn,()=>insertChar(" "));
+    else if(k==="⌫") addHold(btn,backspace);
+    else if(k==="←") addHold(btn,()=>moveCursor("left"));
+    else if(k==="→") addHold(btn,()=>moveCursor("right"));
+    else addHold(btn,()=>insertChar(k));
+
+    r.appendChild(btn);
   });
 
-  kb.appendChild(rowDiv);
+  kb.appendChild(r);
 });
 
-/* SPECIAL ROW */
-const special=document.createElement("div");
-special.className="row";
+/* ================= CANVAS RENDER ================= */
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+let glyphCache={}, time=0;
 
-function specialKey(label,action,cls){
-  const btn=document.createElement("div");
-  btn.className="key "+cls;
-  btn.innerText=label;
+/* PRELOAD */
+Object.keys(glyphMap).forEach(k=>{
+  const img=new Image();
+  img.src="./glyphs/"+glyphMap[k];
+  glyphCache[k]=img;
+});
 
-  btn.onmousedown=action;
-  btn.onmouseup=stopHold;
-  btn.onmouseleave=stopHold;
+function render(){
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  return btn;
+  let x=10, y=10;
+
+  for(let i=0;i<input.value.length;i++){
+    const ch=input.value[i];
+    const img=glyphCache[ch];
+    const wave=Math.sin(time+i*0.3)*3;
+
+    if(img){
+      ctx.drawImage(img,x,y+wave,28,28);
+      x+=30;
+    }
+  }
+
+  time+=0.05;
+  requestAnimationFrame(render);
 }
 
-special.appendChild(specialKey("SPACE",()=>startHold(" "), "xwide"));
-special.appendChild(specialKey("⌫",()=>input.value=input.value.slice(0,-1),"wide"));
-
-kb.appendChild(special);
-
-/* ================= CONTROLS ================= */
-document.getElementById("typeToggle").onclick=()=>typing=!typing;
-document.getElementById("toggle").onclick=()=>{input.value=input.value.split("").reverse().join(""); revealIndex=0;};
-
-/* ================= START ================= */
-const input=document.getElementById("input");
-preload(()=>loop());
+render();
 
 </script>
 </body>
