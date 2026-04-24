@@ -2,9 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal Device</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<title>Glyph Terminal Device FIXED</title>
 
 <style>
 body{
@@ -17,7 +15,6 @@ body{
   font-family:monospace;
 }
 
-/* DEVICE */
 #device{
   width:800px;
   height:800px;
@@ -29,7 +26,6 @@ body{
   flex-direction:column;
 }
 
-/* SCREEN */
 #screen{
   flex:1;
   background:black;
@@ -40,7 +36,7 @@ body{
 
 textarea{
   width:100%;
-  height:110px;
+  height:100px;
   background:transparent;
   border:none;
   color:#00ff88;
@@ -48,10 +44,9 @@ textarea{
   resize:none;
 }
 
-/* CANVAS */
 canvas{
   width:100%;
-  height:260px;
+  height:280px;
 }
 
 /* KEYBOARD */
@@ -79,18 +74,16 @@ canvas{
   background:#111;
   cursor:pointer;
   user-select:none;
-  transition:0.1s;
 }
 
 .key:active{
   transform:scale(0.9);
   background:#00ff88;
   color:black;
-  box-shadow:0 0 10px #00ff88;
 }
 
-.key.wide{min-width:90px;}
 .key.space{min-width:300px;}
+.key.wide{min-width:90px;}
 </style>
 </head>
 
@@ -100,7 +93,7 @@ canvas{
 
 <div id="screen">
 <textarea id="input">hello web3</textarea>
-<canvas id="canvas" width="760" height="260"></canvas>
+<canvas id="canvas" width="760" height="280"></canvas>
 </div>
 
 <div id="keyboard"></div>
@@ -129,19 +122,41 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 
 /* ================= STATE ================= */
 const input=document.getElementById("input");
-let cursorPos=input.value.length;
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 
-/* ================= CURSOR INSERT ================= */
-function insertChar(char){
-  const val=input.value;
-  input.value=val.slice(0,cursorPos)+char+val.slice(cursorPos);
+let cursorPos=input.value.length;
+let glyphCache={};
+let time=0;
+
+/* ================= PRELOAD ================= */
+function preload(cb){
+  let loaded=0;
+  const keys=Object.keys(glyphMap);
+
+  keys.forEach(k=>{
+    const img=new Image();
+    img.src="./glyphs/"+glyphMap[k];
+    img.onload=()=>{
+      glyphCache[k]=img;
+      if(++loaded===keys.length) cb();
+    };
+    img.onerror=()=>{
+      glyphCache[k]=null;
+      if(++loaded===keys.length) cb();
+    };
+  });
+}
+
+/* ================= INPUT ================= */
+function insertChar(c){
+  input.value=input.value.slice(0,cursorPos)+c+input.value.slice(cursorPos);
   cursorPos++;
 }
 
 function backspace(){
   if(cursorPos===0) return;
-  const val=input.value;
-  input.value=val.slice(0,cursorPos-1)+val.slice(cursorPos);
+  input.value=input.value.slice(0,cursorPos-1)+input.value.slice(cursorPos);
   cursorPos--;
 }
 
@@ -150,18 +165,27 @@ function moveCursor(dir){
   if(dir==="right") cursorPos=Math.min(input.value.length,cursorPos+1);
 }
 
-/* ================= HOLD REPEAT ================= */
+/* ================= HOLD FIX ================= */
 function addHold(btn,fn){
   let interval;
-  btn.onmousedown=()=>{
+
+  const start=(e)=>{
+    e.preventDefault();
     fn();
-    interval=setInterval(fn,100);
+    interval=setInterval(fn,80);
   };
-  btn.onmouseup=()=>clearInterval(interval);
-  btn.onmouseleave=()=>clearInterval(interval);
+
+  const stop=()=>clearInterval(interval);
+
+  btn.addEventListener("mousedown",start);
+  btn.addEventListener("touchstart",start,{passive:false});
+
+  btn.addEventListener("mouseup",stop);
+  btn.addEventListener("mouseleave",stop);
+  btn.addEventListener("touchend",stop);
 }
 
-/* ================= KEYBOARD LAYOUT ================= */
+/* ================= KEYBOARD ================= */
 const layout=[
 ["1","2","3","4","5","6","7","8","9","0"],
 ["q","w","e","r","t","y","u","i","o","p"],
@@ -182,8 +206,8 @@ layout.forEach(row=>{
     btn.className="key";
     btn.innerText=k;
 
-    if(k==="space"){ btn.classList.add("space"); }
-    if(k==="⌫"){ btn.classList.add("wide"); }
+    if(k==="space") btn.classList.add("space");
+    if(k==="⌫") btn.classList.add("wide");
 
     if(k==="space") addHold(btn,()=>insertChar(" "));
     else if(k==="⌫") addHold(btn,backspace);
@@ -197,40 +221,64 @@ layout.forEach(row=>{
   kb.appendChild(r);
 });
 
-/* ================= CANVAS RENDER ================= */
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-let glyphCache={}, time=0;
+/* ================= DRAW ================= */
+function draw(){
 
-/* PRELOAD */
-Object.keys(glyphMap).forEach(k=>{
-  const img=new Image();
-  img.src="./glyphs/"+glyphMap[k];
-  glyphCache[k]=img;
-});
-
-function render(){
   ctx.fillStyle="black";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   let x=10, y=10;
+  const lineWidth=canvas.width-20;
 
   for(let i=0;i<input.value.length;i++){
+
+    if(x>lineWidth){
+      x=10;
+      y+=40;
+    }
+
     const ch=input.value[i];
-    const img=glyphCache[ch];
-    const wave=Math.sin(time+i*0.3)*3;
+    const key=ch.toLowerCase();
+    const img=glyphCache[key];
 
     if(img){
-      ctx.drawImage(img,x,y+wave,28,28);
+      ctx.drawImage(img,x,y+Math.sin(time+i*0.3)*3,28,28);
       x+=30;
+    } else {
+      ctx.fillStyle="#00ff88";
+      ctx.fillText(ch,x,y);
+      x+=12;
+    }
+
+    /* CURSOR POSITION TRACK */
+    if(i===cursorPos-1){
+      var cursorX=x;
+      var cursorY=y;
     }
   }
 
+  /* CURSOR DRAW (ALWAYS VISIBLE) */
+  const blink=Math.floor(time*10)%2;
+
+  if(cursorPos===0){
+    cursorX=10;
+    cursorY=10;
+  }
+
+  if(blink){
+    ctx.fillStyle="#00ff88";
+    ctx.fillRect(cursorX||10,cursorY||10,2,28);
+  }
+
   time+=0.05;
-  requestAnimationFrame(render);
+  requestAnimationFrame(draw);
 }
 
-render();
+/* ================= START ================= */
+preload(()=>{
+  ctx.font="16px monospace";
+  draw();
+});
 
 </script>
 </body>
