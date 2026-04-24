@@ -131,22 +131,36 @@ let time=0;
 
 /* ================= PRELOAD ================= */
 function preload(cb){
-  let loaded=0;
-  const keys=Object.keys(glyphMap);
+  const keys = Object.keys(glyphMap);
+  let loaded = 0;
 
   keys.forEach(k=>{
-    const img=new Image();
-    img.src="./glyphs/"+glyphMap[k];
-    img.onload=()=>{
-      glyphCache[k]=img;
-      if(++loaded===keys.length) cb();
+    const img = new Image();
+    img.src = "./glyphs/" + glyphMap[k];
+
+    img.onload = ()=>{
+      glyphCache[k] = img;
+      loaded++;
+      if(loaded === keys.length) cb();
     };
-    img.onerror=()=>{
-      glyphCache[k]=null;
-      if(++loaded===keys.length) cb();
+
+    img.onerror = ()=>{
+      console.warn("Missing:", glyphMap[k]);
+      glyphCache[k] = null;
+      loaded++;
+      if(loaded === keys.length) cb();
     };
   });
 }
+
+  /* ================= LAYOUT CONSTANTS ================= */
+const GLYPH_W = 28;
+const GLYPH_H = 28;
+const GAP = 4;
+const LINE_HEIGHT = 36;
+const START_X = 10;
+const START_Y = 10;
+const MAX_WIDTH = canvas.width - 20;
 
 /* ================= INPUT ================= */
 function insertChar(c){
@@ -221,62 +235,76 @@ layout.forEach(row=>{
   kb.appendChild(r);
 });
 
-/* ================= DRAW ================= */
 function draw(){
 
-  ctx.fillStyle="black";
+  ctx.fillStyle = "black";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  let x=10, y=10;
-  const lineWidth=canvas.width-20;
+  let x = START_X;
+  let y = START_Y;
 
-  for(let i=0;i<input.value.length;i++){
+  let cursorX = START_X;
+  let cursorY = START_Y;
 
-    if(x>lineWidth){
-      x=10;
-      y+=40;
+  const text = input.value;
+
+  for(let i=0;i<=text.length;i++){
+
+    /* CURSOR POSITION BEFORE DRAW */
+    if(i === cursorPos){
+      cursorX = x;
+      cursorY = y;
     }
 
-    const ch=input.value[i];
-    const key=ch.toLowerCase();
-    const img=glyphCache[key];
+    if(i === text.length) break;
 
-    if(img){
-      ctx.drawImage(img,x,y+Math.sin(time+i*0.3)*3,28,28);
-      x+=30;
+    const ch = text[i];
+    const key = ch.toLowerCase();
+
+    /* WRAP */
+    if(x + GLYPH_W > MAX_WIDTH){
+      x = START_X;
+      y += LINE_HEIGHT;
+    }
+
+    const img = glyphCache[key];
+
+    if(img && img.complete){
+      ctx.drawImage(
+        img,
+        x,
+        y + Math.sin(time + i*0.3)*2,
+        GLYPH_W,
+        GLYPH_H
+      );
     } else {
-      ctx.fillStyle="#00ff88";
-      ctx.fillText(ch,x,y);
-      x+=12;
+      /* DEBUG BLOCK */
+      ctx.fillStyle = "#003322";
+      ctx.fillRect(x,y,GLYPH_W,GLYPH_H);
+
+      ctx.fillStyle = "#00ff88";
+      ctx.fillText(ch,x+6,y+6);
     }
 
-    /* CURSOR POSITION TRACK */
-    if(i===cursorPos-1){
-      var cursorX=x;
-      var cursorY=y;
-    }
+    x += GLYPH_W + GAP;
   }
 
-  /* CURSOR DRAW (ALWAYS VISIBLE) */
-  const blink=Math.floor(time*10)%2;
+  /* ===== CURSOR DRAW ===== */
+  const blink = Math.floor(time * 6) % 2;
 
-  if(cursorPos===0){
-    cursorX=10;
-    cursorY=10;
+  if (blink) {
+    ctx.fillStyle = "#00ff88";
+    ctx.fillRect(cursorX, cursorY, 2, GLYPH_H);
   }
 
-  if(blink){
-    ctx.fillStyle="#00ff88";
-    ctx.fillRect(cursorX||10,cursorY||10,2,28);
-  }
-
-  time+=0.05;
+  /* ===== ANIMATION LOOP ===== */
+  time += 0.05;
   requestAnimationFrame(draw);
 }
-
 /* ================= START ================= */
 preload(()=>{
-  ctx.font="16px monospace";
+  ctx.font = "14px monospace";
+  ctx.textBaseline = "top";
   draw();
 });
 
