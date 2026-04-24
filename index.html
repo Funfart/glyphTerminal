@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal Device FIXED</title>
+<title>Glyph Terminal Device FINAL</title>
 
 <style>
 body{
@@ -101,15 +101,15 @@ canvas{
 </div>
 
 <script>
+
 /* ================= CONFIG ================= */
 const GLYPH_PATH="./glyphs/";
-const GLYPH_SIZE=32;
-const LINE_HEIGHT=46;
-const MARGIN=20;
+const GLYPH_SIZE=28;
+const LINE_HEIGHT=40;
+const MARGIN=10;
 const WAVE_AMPLITUDE=3;
 const WAVE_SPEED=0.03;
-const GIF_FPS=12;
-const FINAL_HOLD_SECONDS=7;
+
 /* ================= GLYPH MAP ================= */
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
@@ -139,36 +139,25 @@ let time=0;
 
 /* ================= PRELOAD ================= */
 function preload(cb){
-  const keys = Object.keys(glyphMap);
-  let loaded = 0;
+  const keys=Object.keys(glyphMap);
+  let loaded=0;
 
   keys.forEach(k=>{
-    const img = new Image();
-    img.src = "./glyphs/" + glyphMap[k];
+    const img=new Image();
+    img.src=GLYPH_PATH + glyphMap[k];
 
-    img.onload = ()=>{
-      glyphCache[k] = img;
-      loaded++;
-      if(loaded === keys.length) cb();
+    img.onload=()=>{
+      glyphCache[k]=img;
+      if(++loaded===keys.length) cb();
     };
 
-    img.onerror = ()=>{
+    img.onerror=()=>{
       console.warn("Missing:", glyphMap[k]);
-      glyphCache[k] = null;
-      loaded++;
-      if(loaded === keys.length) cb();
+      glyphCache[k]=null;
+      if(++loaded===keys.length) cb();
     };
   });
 }
-
-  /* ================= LAYOUT CONSTANTS ================= */
-const GLYPH_W = 28;
-const GLYPH_H = 28;
-const GAP = 4;
-const LINE_HEIGHT = 36;
-const START_X = 10;
-const START_Y = 10;
-const MAX_WIDTH = canvas.width - 20;
 
 /* ================= INPUT ================= */
 function insertChar(c){
@@ -187,7 +176,7 @@ function moveCursor(dir){
   if(dir==="right") cursorPos=Math.min(input.value.length,cursorPos+1);
 }
 
-/* ================= HOLD FIX ================= */
+/* ================= HOLD ================= */
 function addHold(btn,fn){
   let interval;
 
@@ -201,7 +190,6 @@ function addHold(btn,fn){
 
   btn.addEventListener("mousedown",start);
   btn.addEventListener("touchstart",start,{passive:false});
-
   btn.addEventListener("mouseup",stop);
   btn.addEventListener("mouseleave",stop);
   btn.addEventListener("touchend",stop);
@@ -243,76 +231,81 @@ layout.forEach(row=>{
   kb.appendChild(r);
 });
 
+/* ================= DRAW (MERGED ENGINE) ================= */
 function draw(){
 
-  ctx.fillStyle = "black";
+  ctx.fillStyle="black";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  let x = START_X;
-  let y = START_Y;
+  let x=MARGIN;
+  let y=MARGIN;
 
-  let cursorX = START_X;
-  let cursorY = START_Y;
+  let cursorX=x;
+  let cursorY=y;
 
-  const text = input.value;
+  const text=input.value;
 
   for(let i=0;i<=text.length;i++){
 
-    /* CURSOR POSITION BEFORE DRAW */
-    if(i === cursorPos){
-      cursorX = x;
-      cursorY = y;
+    if(i===cursorPos){
+      cursorX=x;
+      cursorY=y;
     }
 
-    if(i === text.length) break;
+    if(i===text.length) break;
 
-    const ch = text[i];
-    const key = ch.toLowerCase();
+    const ch=text[i];
+    const key=ch.toLowerCase();
+    const waveY=Math.sin(time+i*0.35)*WAVE_AMPLITUDE;
 
-    /* WRAP */
-    if(x + GLYPH_W > MAX_WIDTH){
-      x = START_X;
-      y += LINE_HEIGHT;
+    if(ch==="\n"){
+      x=MARGIN;
+      y+=LINE_HEIGHT;
+      continue;
     }
 
-    const img = glyphCache[key];
+    const advance=glyphMap[key]
+      ? GLYPH_SIZE
+      : ctx.measureText(ch).width+2;
 
-    if(img && img.complete){
-      ctx.drawImage(
-        img,
-        x,
-        y + Math.sin(time + i*0.3)*2,
-        GLYPH_W,
-        GLYPH_H
-      );
+    if(x+advance>canvas.width-MARGIN){
+      x=MARGIN;
+      y+=LINE_HEIGHT;
+    }
+
+    if(glyphMap[key]){
+      const img=glyphCache[key];
+
+      if(img && img.complete && img.naturalWidth>0){
+        ctx.drawImage(img,x,y+waveY,GLYPH_SIZE,GLYPH_SIZE);
+      } else {
+        ctx.fillStyle="#004422";
+        ctx.fillRect(x,y,GLYPH_SIZE,GLYPH_SIZE);
+      }
+
+      x+=GLYPH_SIZE;
     } else {
-      /* DEBUG BLOCK */
-      ctx.fillStyle = "#003322";
-      ctx.fillRect(x,y,GLYPH_W,GLYPH_H);
-
-      ctx.fillStyle = "#00ff88";
-      ctx.fillText(ch,x+6,y+6);
+      ctx.fillStyle="#00ff88";
+      ctx.fillText(ch,x,y+waveY);
+      x+=ctx.measureText(ch).width+2;
     }
-
-    x += GLYPH_W + GAP;
   }
 
-  /* ===== CURSOR DRAW ===== */
-  const blink = Math.floor(time * 6) % 2;
-
-  if (blink) {
-    ctx.fillStyle = "#00ff88";
-    ctx.fillRect(cursorX, cursorY, 2, GLYPH_H);
+  /* CURSOR */
+  const blink=Math.floor(time*6)%2;
+  if(blink){
+    ctx.fillStyle="#00ff88";
+    ctx.fillRect(cursorX,cursorY,2,GLYPH_SIZE);
   }
 
-  /* ===== ANIMATION LOOP ===== */
-  time += 0.05;
+  time+=WAVE_SPEED;
   requestAnimationFrame(draw);
 }
+
 /* ================= START ================= */
 preload(()=>{
-  ctx.font = "14px monospace";
-  ctx.textBaseline = "top";
+  ctx.font="16px monospace";
+  ctx.textBaseline="top";
   draw();
 });
 
