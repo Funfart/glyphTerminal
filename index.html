@@ -136,10 +136,13 @@ const WAVE_SPEED=0.03;
 /* ================= SHIFT ================= */
 let shift=false;
 
-const shiftMap={
+const shiftMap = {
 "1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
 "-":"_","=":"+",
-".":">",",":"<"
+"[":"{","]":"}",
+";":":","'":"\"",
+",":"<",".":">","/":"?",
+"\\":"|","`":"~"
 };
 const displayShiftMap={
 "1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
@@ -166,7 +169,9 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 /* SHIFT SYMBOLS */
 "!":"!.png","&":"&.png","|":"or.png","\"":"qu.png","+":"+.png",
 "<":"less.png",">":"more.png","_":"under.png","%":"pp.png",
-"$":"crypto.png","(":"oB+.png",")":"cB+.png"
+"$":"crypto.png","(":"oB+.png",")":"cB+.png","[":"oSqBr.png",
+"]":"cSqBr.png","{":"oBr.png","}":"cBr.png",":":"colon.png",
+"\"":"qu.png","?":"q.png", "|":"or.png","~":"bTick.png"
 };
 
 /* ================= STATE ================= */
@@ -261,10 +266,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ================= KEYBOARD ================= */
-const kb=document.getElementById("keyboard");
-
-["1234567890","qwertyuiop","asdfghjkl","zxcvbnm"].forEach(r=>{
+rows.forEach(r=>{
   const row=document.createElement("div");
   row.className="row";
 
@@ -288,13 +290,13 @@ const kb=document.getElementById("keyboard");
 
     b.onclick=()=>writeKey(k);
 
-    b.dataset.base=k; // store original key
+    b.dataset.base=k;
+
     row.appendChild(b);
   });
 
   kb.appendChild(row);
 });
-
 /* DOCK */
 const dock=document.createElement("div");
 dock.className="dock";
