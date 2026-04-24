@@ -79,16 +79,19 @@ canvas{
   margin-top:10px;
   display:flex;
   flex-direction:column;
+  align-items:center;   /* CENTER ENTIRE KEYBOARD */
   gap:6px;
   max-height:240px;
   overflow:hidden;
 }
 
-/* ROWS */
+/* KEY ROWS */
 .row{
   display:grid;
   grid-template-columns: repeat(10, 1fr);
   gap:6px;
+  width:100%;
+  max-width:760px;   /* keeps centered + contained */
 }
 
 .key{
@@ -109,8 +112,13 @@ canvas{
   color:black;
 }
 
+/* SPECIAL KEYS */
 .space{
-  grid-column: span 4;
+  grid-column: span 6;
+}
+
+.backspace{
+  grid-column: span 2;
 }
 </style>
 </head>
@@ -178,9 +186,10 @@ function preload(cb){
   });
 }
 
-/* ================= DRAW ================= */
+/* ================= DRAW (FIXED WRAPPING) ================= */
 function draw(text){
   let x=10,y=10;
+  const maxW=canvas.width-20;
 
   ctx.fillStyle="black";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -194,27 +203,37 @@ function draw(text){
     const img=glyphCache[ch];
     const wave=Math.sin(time+i*0.3)*WAVE_AMPLITUDE;
 
-    if(ch===" "){ x+=GLYPH_SIZE; continue; }
+    if(ch===" "){
+      x+=GLYPH_SIZE;
+    } else if(img){
+      if(x+GLYPH_SIZE>maxW){
+        x=10;
+        y+=GLYPH_SIZE+10;
+      }
 
-    if(img){
       ctx.drawImage(img,x,y+wave,GLYPH_SIZE,GLYPH_SIZE);
       x+=GLYPH_SIZE;
     }
   }
 
-  /* ===== CURSOR (FIXED + SYNCHRONIZED) ===== */
+  /* ===== CURSOR ===== */
   let cx=10, cy=10;
   const before=input.value.slice(0,Math.floor(revealIndex));
 
   for(let i=0;i<before.length;i++){
     const ch=before[i];
-    if(ch===" "){ cx+=GLYPH_SIZE; continue; }
-    if(glyphCache[ch]) cx+=GLYPH_SIZE;
+    if(ch===" "){
+      cx+=GLYPH_SIZE;
+    } else if(glyphCache[ch]){
+      if(cx+GLYPH_SIZE>maxW){
+        cx=10;
+        cy+=GLYPH_SIZE+10;
+      }
+      cx+=GLYPH_SIZE;
+    }
   }
 
-  const blink=Math.floor(Date.now()/500)%2;
-
-  if(blink){
+  if(Math.floor(Date.now()/500)%2){
     ctx.fillStyle="#00ff88";
     ctx.fillRect(cx,cy,3,GLYPH_SIZE);
   }
@@ -228,7 +247,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ================= HOLD INPUT (FIXED) ================= */
+/* ================= HOLD INPUT ================= */
 let holdTimer=null;
 let holding=false;
 
@@ -254,7 +273,7 @@ const layout=[
 "qwertyuiop",
 "asdfghjkl",
 "zxcvbnm",
-".,-/'= "
+".,-/'="
 ];
 
 const kb=document.getElementById("keyboard");
@@ -278,19 +297,25 @@ layout.forEach(row=>{
   kb.appendChild(r);
 });
 
+/* ===== SPACE + BACKSPACE (FIXED) ===== */
+const bottomRow=document.createElement("div");
+bottomRow.className="row";
+
 /* SPACE */
 const space=document.createElement("div");
 space.className="key space";
 space.innerText="SPACE";
 space.onclick=()=>input.value+=" ";
-kb.appendChild(space);
 
 /* BACKSPACE */
 const back=document.createElement("div");
-back.className="key";
+back.className="key backspace";
 back.innerText="⌫";
 back.onclick=()=>input.value=input.value.slice(0,-1);
-kb.appendChild(back);
+
+bottomRow.appendChild(space);
+bottomRow.appendChild(back);
+kb.appendChild(bottomRow);
 
 /* ================= PHYSICAL KEYBOARD ================= */
 document.addEventListener("keydown",(e)=>{
