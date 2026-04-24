@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TriBit Glyph&copy; Terminal</title>
+<title>Tribit Glyph&copy; Terminal</title>
 
 <style>
 body{
@@ -142,6 +142,7 @@ const displayShiftMap={...shiftMap};
 
 /* ================= GLYPH MAP ================= */
 const glyphMap={
+/* letters */
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
 f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
 k:"11.png",l:"12.png",m:"13.png",n:"14.png",o:"15.png",
@@ -150,20 +151,44 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 
 " ":"space.png",
 
+/* numbers */
 "0":"0.png","1":"1_.png","2":"2_.png","3":"3_.png",
 "4":"4_.png","5":"5_.png","6":"6_.png","7":"7_.png",
 "8":"8_.png","9":"9_.png",
 
+/* punctuation */
 ".":"p.png",",":"ap.png","-":"-.png","/":"fSlash.png",
 "'":"app.png",";":"semi.png","=":"eq+.png",
 
-"!":"!.png","&":"&.png","|":"or.png","\"":"qu.png","+":"+.png",
-"<":"less.png",">":"more.png","_":"under.png","%":"pp.png",
-"$":"crypto.png","(":"oB+.png",")":"cB+.png",
-"[":"oSqBr.png","]":"cSqBr.png","{":"oBr.png","}":"cBr.png",
-":":"colon.png","~":"bTick.png",
+/* SHIFT symbols */
+"!":"!.png",
+"@":"crypto.png",   /* fallback */
+"#":"pp.png",       /* fallback */
+"$":"crypto.png",
+"%":"pp.png",
+"^":"bTick.png",    /* fallback */
+"&":"&.png",
+"*":"+.png",        /* fallback */
+"(":"oB+.png",
+")":"cB+.png",
+"_":"under.png",
+"+":"+.png",
 
-"?":"p.png" // safe fallback
+"<":"less.png",
+">":"more.png",
+"|":"or.png",
+"\\":"bSlash.png",
+
+"[":"oSqBr.png","]":"cSqBr.png",
+"{":"oBr.png","}":"cBr.png",
+
+":":"colon.png",
+"\"":"qu.png",
+
+"`":"bTick.png",
+"~":"bTick.png",
+
+"?":"p.png" /* safe fallback */
 };
 
 /* ================= STATE ================= */
@@ -192,8 +217,7 @@ function preload(cb){
 
 /* ================= INPUT ================= */
 function writeKey(k){
-  const key = k.toLowerCase();
-  const out = (shift && shiftMap[key]) ? shiftMap[key] : key;
+  const out=(shift && shiftMap[k]) ? shiftMap[k] : k;
   input.value+=out;
 }
 
@@ -210,8 +234,8 @@ function draw(text){
   ctx.shadowBlur=10;
 
   for(let i=0;i<text.length;i++){
-    let ch=text[i].toLowerCase();
-    let img=glyphCache[ch];
+    let ch=text[i];
+    let img=glyphCache[ch] || glyphCache[ch.toLowerCase()];
 
     const wave=Math.sin(time+i*0.3)*WAVE_AMPLITUDE;
 
@@ -233,7 +257,6 @@ function draw(text){
     }
   }
 
-  /* CURSOR */
   if(Math.floor(Date.now()/500)%2){
     ctx.fillRect(x,y,3,GLYPH_SIZE);
   }
@@ -265,7 +288,6 @@ rows.forEach(r=>{
     b.className="key";
 
     const main=document.createElement("div");
-    main.className="main";
     main.innerText=k;
 
     if(displayShiftMap[k]){
@@ -277,7 +299,6 @@ rows.forEach(r=>{
 
     b.appendChild(main);
     b.dataset.base=k;
-
     b.onclick=()=>writeKey(k);
 
     row.appendChild(b);
@@ -300,11 +321,9 @@ shiftBtn.onclick=()=>{
 
   document.querySelectorAll(".key").forEach(btn=>{
     if(!btn.dataset.base) return;
-
     const base=btn.dataset.base;
-    const main=btn.querySelector(".main");
-
-    main.innerText = (shift && displayShiftMap[base]) ? displayShiftMap[base] : base;
+    btn.childNodes[0].nodeValue =
+      (shift && displayShiftMap[base]) ? displayShiftMap[base] : base;
   });
 };
 
@@ -325,12 +344,8 @@ kb.appendChild(dock);
 
 /* ================= PHYSICAL ================= */
 document.addEventListener("keydown",(e)=>{
-  if(e.key.length===1){
-    writeKey(e.key);
-  }
-  if(e.key==="Backspace"){
-    input.value=input.value.slice(0,-1);
-  }
+  if(e.key.length===1) writeKey(e.key);
+  if(e.key==="Backspace") input.value=input.value.slice(0,-1);
 });
 
 /* ================= START ================= */
