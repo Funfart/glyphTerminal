@@ -74,26 +74,27 @@ canvas{
   padding:6px;
 }
 
-/* ===== KEYBOARD ===== */
+/* ===== KEYBOARD WRAPPER ===== */
 #keyboard{
   margin-top:10px;
   display:flex;
   flex-direction:column;
-  align-items:center;   /* CENTER ENTIRE KEYBOARD */
+  align-items:center;
   gap:6px;
   max-height:240px;
   overflow:hidden;
 }
 
-/* KEY ROWS */
+/* ===== KEY ROWS ===== */
 .row{
   display:grid;
   grid-template-columns: repeat(10, 1fr);
   gap:6px;
   width:100%;
-  max-width:760px;   /* keeps centered + contained */
+  max-width:760px;
 }
 
+/* ===== KEYS ===== */
 .key{
   background:#111;
   border:1px solid #00ff88;
@@ -112,13 +113,18 @@ canvas{
   color:black;
 }
 
-/* SPECIAL KEYS */
-.space{
-  grid-column: span 6;
+/* ===== SPECIAL DOCK ROW ===== */
+.dock{
+  display:grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap:6px;
+  width:100%;
+  max-width:760px;
 }
 
-.backspace{
-  grid-column: span 2;
+.shiftActive{
+  background:#00ff88 !important;
+  color:black !important;
 }
 </style>
 </head>
@@ -150,6 +156,15 @@ const GLYPH_SIZE=28;
 const WAVE_AMPLITUDE=3;
 const WAVE_SPEED=0.03;
 
+/* ================= SHIFT SYSTEM ================= */
+let shift=false;
+
+const shiftMap={
+"1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
+"-":"_","=":"+",
+".":">",",":"<"
+};
+
 /* ================= GLYPH MAP ================= */
 const glyphMap={
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
@@ -171,6 +186,15 @@ const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 const input=document.getElementById("input");
 
+/* ================= INPUT SYSTEM ================= */
+function writeKey(k){
+  if(shift && shiftMap[k]){
+    input.value += shiftMap[k];
+  } else {
+    input.value += k;
+  }
+}
+
 /* ================= PRELOAD ================= */
 function preload(cb){
   let loaded=0;
@@ -186,7 +210,7 @@ function preload(cb){
   });
 }
 
-/* ================= DRAW (FIXED WRAPPING) ================= */
+/* ================= DRAW + WRAP FIX ================= */
 function draw(text){
   let x=10,y=10;
   const maxW=canvas.width-20;
@@ -205,7 +229,10 @@ function draw(text){
 
     if(ch===" "){
       x+=GLYPH_SIZE;
-    } else if(img){
+      continue;
+    }
+
+    if(img){
       if(x+GLYPH_SIZE>maxW){
         x=10;
         y+=GLYPH_SIZE+10;
@@ -222,6 +249,7 @@ function draw(text){
 
   for(let i=0;i<before.length;i++){
     const ch=before[i];
+
     if(ch===" "){
       cx+=GLYPH_SIZE;
     } else if(glyphCache[ch]){
@@ -247,38 +275,18 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ================= HOLD INPUT ================= */
-let holdTimer=null;
-let holding=false;
-
-function startHold(k){
-  if(holding) return;
-  holding=true;
-
-  input.value+=k;
-
-  holdTimer=setInterval(()=>{
-    input.value+=k;
-  },140);
-}
-
-function stopHold(){
-  holding=false;
-  clearInterval(holdTimer);
-}
-
 /* ================= KEYBOARD ================= */
-const layout=[
+const kb=document.getElementById("keyboard");
+
+/* MAIN KEYS */
+const rows=[
 "1234567890",
 "qwertyuiop",
 "asdfghjkl",
-"zxcvbnm",
-".,-/'="
+"zxcvbnm"
 ];
 
-const kb=document.getElementById("keyboard");
-
-layout.forEach(row=>{
+rows.forEach(row=>{
   const r=document.createElement("div");
   r.className="row";
 
@@ -287,9 +295,7 @@ layout.forEach(row=>{
     btn.className="key";
     btn.innerText=k;
 
-    btn.onmousedown=()=>startHold(k);
-    btn.onmouseup=stopHold;
-    btn.onmouseleave=stopHold;
+    btn.onmousedown=()=>writeKey(k);
 
     r.appendChild(btn);
   });
@@ -297,29 +303,41 @@ layout.forEach(row=>{
   kb.appendChild(r);
 });
 
-/* ===== SPACE + BACKSPACE (FIXED) ===== */
-const bottomRow=document.createElement("div");
-bottomRow.className="row";
+/* ===== DYNAMIC DOCK (FIXED UI PROBLEM) ===== */
+const dock=document.createElement("div");
+dock.className="dock";
+
+/* SHIFT */
+const shiftBtn=document.createElement("div");
+shiftBtn.className="key";
+shiftBtn.innerText="SHIFT";
+
+shiftBtn.onclick=()=>{
+  shift=!shift;
+  shiftBtn.classList.toggle("shiftActive",shift);
+};
 
 /* SPACE */
 const space=document.createElement("div");
-space.className="key space";
+space.className="key";
 space.innerText="SPACE";
 space.onclick=()=>input.value+=" ";
 
 /* BACKSPACE */
 const back=document.createElement("div");
-back.className="key backspace";
+back.className="key";
 back.innerText="⌫";
 back.onclick=()=>input.value=input.value.slice(0,-1);
 
-bottomRow.appendChild(space);
-bottomRow.appendChild(back);
-kb.appendChild(bottomRow);
+dock.appendChild(shiftBtn);
+dock.appendChild(space);
+dock.appendChild(back);
+
+kb.appendChild(dock);
 
 /* ================= PHYSICAL KEYBOARD ================= */
 document.addEventListener("keydown",(e)=>{
-  if(e.key.length===1) input.value+=e.key;
+  if(e.key.length===1) writeKey(e.key);
 });
 
 /* ================= START ================= */
