@@ -61,7 +61,6 @@ canvas{
 
 .row{
   display:grid;
-  grid-template-columns: repeat(10,1fr);
   gap:6px;
   width:100%;
   max-width:760px;
@@ -139,15 +138,7 @@ const shiftMap={
 "\\":"|","`":"~"
 };
 
-/* overlay display */
-const displayShiftMap={
-"1":"!","2":"@","3":"#","4":"$","5":"%","6":"^","7":"&","8":"*","9":"(","0":")",
-"-":"_","=":"+",
-"[":"{","]":"}",
-";":":","'":"\"",
-",":"<",".":">","/":"?",
-"\\":"|","`":"~"
-};
+const displayShiftMap={...shiftMap};
 
 /* ================= GLYPH MAP ================= */
 const glyphMap={
@@ -170,7 +161,9 @@ u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
 "<":"less.png",">":"more.png","_":"under.png","%":"pp.png",
 "$":"crypto.png","(":"oB+.png",")":"cB+.png",
 "[":"oSqBr.png","]":"cSqBr.png","{":"oBr.png","}":"cBr.png",
-":":"colon.png","?":"q.png","~":"bTick.png"
+":":"colon.png","~":"bTick.png",
+
+"?":"p.png" // SAFE fallback
 };
 
 /* ================= STATE ================= */
@@ -189,7 +182,8 @@ function preload(cb){
   keys.forEach(k=>{
     const img=new Image();
     img.src=GLYPH_PATH+glyphMap[k];
-    img.onload=()=>{
+
+    img.onload = img.onerror = ()=>{
       glyphCache[k]=img;
       if(++loaded===keys.length) cb();
     };
@@ -227,14 +221,16 @@ function draw(text){
       continue;
     }
 
-    if(img){
+    if(img && img.complete){
       if(x+GLYPH_SIZE>maxW){
         x=10;
         y+=GLYPH_SIZE+10;
       }
-
       ctx.drawImage(img,x,y+wave,GLYPH_SIZE,GLYPH_SIZE);
       x+=GLYPH_SIZE;
+    } else {
+      ctx.fillText(ch,x,y);
+      x+=GLYPH_SIZE/2;
     }
   }
 
@@ -246,8 +242,7 @@ function draw(text){
 /* ================= LOOP ================= */
 function loop(){
   if(typing) revealIndex+=0.5;
-  const text=input.value.slice(0,Math.floor(revealIndex));
-  draw(text);
+  draw(input.value.slice(0,Math.floor(revealIndex)));
   time+=WAVE_SPEED;
   requestAnimationFrame(loop);
 }
@@ -263,6 +258,7 @@ const rows=[
 rows.forEach(r=>{
   const row=document.createElement("div");
   row.className="row";
+  row.style.gridTemplateColumns=`repeat(${r.length},1fr)`;
 
   r.split("").forEach(k=>{
     const b=document.createElement("div");
@@ -281,6 +277,7 @@ rows.forEach(r=>{
 
     b.appendChild(main);
     b.dataset.base=k;
+
     b.onclick=()=>writeKey(k);
 
     row.appendChild(b);
@@ -307,11 +304,7 @@ shiftBtn.onclick=()=>{
     const base=btn.dataset.base;
     const main=btn.querySelector(".main");
 
-    if(shift && displayShiftMap[base]){
-      main.innerText=displayShiftMap[base];
-    } else {
-      main.innerText=base;
-    }
+    main.innerText = (shift && displayShiftMap[base]) ? displayShiftMap[base] : base;
   });
 };
 
