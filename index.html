@@ -2,9 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Glyph Terminal UI v4 (Atlas System)</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<title>Glyph Terminal UI v4 (CLEAN ATLAS)</title>
 
 <style>
 body{
@@ -34,17 +32,14 @@ body{
   border-radius:12px;
   padding:10px;
   box-shadow:inset 0 0 15px #00ff88;
-  display:flex;
-  flex-direction:column;
   position:relative;
 }
 
 canvas{
-  flex:1;
-  border-radius:8px;
+  width:100%;
+  height:100%;
 }
 
-/* CURSOR */
 #cursor{
   position:absolute;
   top:140px;
@@ -59,21 +54,6 @@ canvas{
 @keyframes blink{
   0%,50%{opacity:1;}
   51%,100%{opacity:0;}
-}
-
-#controls{
-  display:flex;
-  gap:6px;
-  margin-top:8px;
-}
-
-button{
-  flex:1;
-  background:#111;
-  border:1px solid #00ff88;
-  color:#00ff88;
-  padding:6px;
-  border-radius:6px;
 }
 
 #keyboard{
@@ -98,16 +78,11 @@ button{
   transform:scale(0.88);
   background:#00ff88;
   color:black;
-  box-shadow:0 0 10px #00ff88;
 }
 
-.space{
-  grid-column: span 5;
-}
+.space{ grid-column:span 5; }
 
-.arrow{
-  background:#0c0c0c;
-}
+.arrow{ background:#0c0c0c; }
 </style>
 </head>
 
@@ -120,26 +95,40 @@ button{
     <div id="cursor"></div>
   </div>
 
-  <div id="controls">
-    <button id="clear">Clear</button>
-    <button id="mode">Mode</button>
-    <button id="export">GIF</button>
-  </div>
-
   <div id="keyboard"></div>
 
 </div>
 
 <script>
 
-/* ================= INDEXED GLYPH MAP ================= */
-/* character → index (NOT filename anymore) */
+/* ================= PURE INDEXED ATLAS ================= */
+/* index = glyph image */
+
+const glyphAtlasFiles = [
+"1.png","2.png","3.png","4.png","5.png",
+"6.png","7.png","8.png","9.png","10.png",
+"11.png","12.png","13.png","14.png","15.png",
+"16.png","17.png","18.png","19.png","20.png",
+"21.png","22.png","23.png","24.png","25.png","26.png",
+
+"space.png","0.png","1_.png","2_.png","3_.png",
+"4_.png","5_.png","6_.png","7_.png","8_.png","9_.png",
+
+"p.png","ap.png","fSlash.png","-.png","+.png",
+"eq+.png","!.png","q.png","oB+.png","cB+.png"
+];
+
+const glyphAtlas = [];
+const GLYPH_PATH = "./glyphs/";
+
+/* ================= CHARACTER → INDEX ================= */
 const glyphIndexMap = {
 a:0,b:1,c:2,d:3,e:4,f:5,g:6,h:7,i:8,j:9,
 k:10,l:11,m:12,n:13,o:14,p:15,q:16,r:17,s:18,t:19,
 u:20,v:21,w:22,x:23,y:24,z:25,
 
 " ":26,
+
 "0":27,"1":28,"2":29,"3":30,"4":31,
 "5":32,"6":33,"7":34,"8":35,"9":36,
 
@@ -147,43 +136,35 @@ u:20,v:21,w:22,x:23,y:24,z:25,
 "=":42,"!":43,"?":44,"(":45,")":46
 };
 
-/* ================= ATLAS ================= */
-const glyphAtlas=[];
-const GLYPH_PATH="./glyphs/";
-
 /* ================= STATE ================= */
 let buffer=[];
 let cursor=0;
-let time=0;
 
-/* ================= CANVAS ================= */
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
+
 const GLYPH_SIZE=26;
 const MARGIN=20;
 
-/* ================= LOAD ATLAS ================= */
+/* ================= LOAD ATLAS (NO FALLBACKS) ================= */
 function loadAtlas(cb){
-  const total=47; // number of glyphs you currently use
   let loaded=0;
 
-  for(let i=0;i<total;i++){
+  glyphAtlasFiles.forEach((file,i)=>{
     const img=new Image();
-    img.src=`${GLYPH_PATH}${i <= 25 ? (i+1) : getFilename(i)}`;
-    
-    img.onload=()=>{ glyphAtlas[i]=img; if(++loaded===total) cb(); };
-  }
-}
+    img.src = GLYPH_PATH + file;
 
-/* fallback filename mapping for your existing assets */
-function getFilename(i){
-  const map=[
-    "space.png","0.png","1_.png","2_.png","3_.png",
-    "4_.png","5_.png","6_.png","7_.png","8_.png","9_.png",
-    "p.png",",.png","fSlash.png","-.png","+.png",
-    "eq+.png","!.png","q.png","oB+.png","cB+.png"
-  ];
-  return map[i-26];
+    img.onload = ()=>{
+      glyphAtlas[i] = img;
+      if(++loaded === glyphAtlasFiles.length) cb();
+    };
+
+    img.onerror = ()=>{
+      console.warn("Missing glyph:", file);
+      glyphAtlas[i] = null;
+      if(++loaded === glyphAtlasFiles.length) cb();
+    };
+  });
 }
 
 /* ================= INSERT ================= */
@@ -192,12 +173,14 @@ function insert(ch){
   cursor++;
 }
 
-/* ================= HOLD ================= */
+/* ================= HOLD INPUT ================= */
 let hold=null;
+
 function startHold(ch){
   insert(ch);
   hold=setInterval(()=>insert(ch),80);
 }
+
 function stopHold(){
   clearInterval(hold);
 }
@@ -213,9 +196,13 @@ function render(){
     const ch=buffer[i];
     const idx=glyphIndexMap[ch];
 
-    if(ch===" "){ x+=GLYPH_SIZE; continue; }
+    if(ch===" "){
+      x+=GLYPH_SIZE;
+      continue;
+    }
 
     const img=glyphAtlas[idx];
+
     if(img){
       ctx.drawImage(img,x,y,GLYPH_SIZE,GLYPH_SIZE);
       x+=GLYPH_SIZE;
@@ -227,7 +214,6 @@ function render(){
     }
   }
 
-  time++;
   requestAnimationFrame(render);
 }
 
@@ -261,7 +247,7 @@ layout.forEach(row=>{
   });
 });
 
-/* ================= KEY LOGIC ================= */
+/* ================= INPUT ================= */
 function handle(k){
   if(k==="SPACE") return insert(" ");
   if(k==="BACK") return buffer.splice(--cursor,1);
@@ -288,19 +274,10 @@ document.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowRight") cursor=Math.min(buffer.length,cursor+1);
 });
 
-/* ================= CONTROLS ================= */
-document.getElementById("clear").onclick=()=>{
-  buffer=[];
-  cursor=0;
-};
-
-document.getElementById("mode").onclick=()=>{
-  buffer.reverse();
-};
-
 /* ================= START ================= */
 loadAtlas(()=>render());
 
 </script>
+
 </body>
 </html>
