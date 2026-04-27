@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Tribit Glyph&copy; Terminal</title>
+<title>Tribit Glyph Terminal</title>
 
 <style>
 body{
@@ -120,6 +120,9 @@ canvas{
 
 <script>
 
+/* ================= MODE DETECTION ================= */
+const isSandboxed = window.origin === "null";
+
 /* ================= CONFIG ================= */
 const GLYPH_PATH="./glyphs/";
 const GLYPH_SIZE=28;
@@ -141,54 +144,25 @@ const shiftMap={
 const displayShiftMap={...shiftMap};
 
 /* ================= GLYPH MAP ================= */
-const glyphMap={
-/* letters */
+const glyphMap={ /* unchanged */ 
 a:"1.png",b:"2.png",c:"3.png",d:"4.png",e:"5.png",
 f:"6.png",g:"7.png",h:"8.png",i:"9.png",j:"10.png",
 k:"11.png",l:"12.png",m:"13.png",n:"14.png",o:"15.png",
 p:"16.png",q:"17.png",r:"18.png",s:"19.png",t:"20.png",
 u:"21.png",v:"22.png",w:"23.png",x:"24.png",y:"25.png",z:"26.png",
-
 " ":"space.png",
-
-/* numbers */
 "0":"0.png","1":"1_.png","2":"2_.png","3":"3_.png",
 "4":"4_.png","5":"5_.png","6":"6_.png","7":"7_.png",
 "8":"8_.png","9":"9_.png",
-
-/* punctuation */
 ".":"p.png",",":"ap.png","-":"-.png","/":"fSlash.png",
 "'":"app.png",";":"semi.png","=":"eq+.png",
-
-/* SHIFT symbols */
-"!":"!.png",
-"@":"crypto.png",   /* fallback */
-"#":"pp.png",       /* fallback */
-"$":"crypto.png",
-"%":"pp.png",
-"^":"bTick.png",    /* fallback */
-"&":"&.png",
-"*":"+.png",        /* fallback */
-"(":"oB+.png",
-")":"cB+.png",
-"_":"under.png",
-"+":"+.png",
-
-"<":"less.png",
-">":"more.png",
-"|":"or.png",
-"\\":"bSlash.png",
-
-"[":"oSqBr.png","]":"cSqBr.png",
-"{":"oBr.png","}":"cBr.png",
-
-":":"colon.png",
-"\"":"qu.png",
-
-"`":"bTick.png",
-"~":"bTick.png",
-
-"?":"p.png" /* safe fallback */
+"!":"!.png","@":"crypto.png","#":"pp.png","$":"crypto.png",
+"%":"pp.png","^":"bTick.png","&":"&.png","*":"+.png",
+"(":"oB+.png",")":"cB+.png","_":"under.png","+":"+.png",
+"<":"less.png",">":"more.png","|":"or.png","\\":"bSlash.png",
+"[":"oSqBr.png","]":"cSqBr.png","{":"oBr.png","}":"cBr.png",
+":":"colon.png","\"":"qu.png","`":"bTick.png","~":"bTick.png",
+"?":"p.png"
 };
 
 /* ================= STATE ================= */
@@ -203,11 +177,9 @@ const kb=document.getElementById("keyboard");
 function preload(cb){
   let loaded=0;
   const keys=Object.keys(glyphMap);
-
   keys.forEach(k=>{
     const img=new Image();
     img.src=GLYPH_PATH+glyphMap[k];
-
     img.onload = img.onerror = ()=>{
       glyphCache[k]=img;
       if(++loaded===keys.length) cb();
@@ -215,10 +187,46 @@ function preload(cb){
   });
 }
 
+/* ================= COMMAND SYSTEM ================= */
+function handleCommand(cmd){
+  if(isSandboxed){
+    input.value = "[SAFE MODE] Commands disabled in OpenSea";
+    return;
+  }
+
+  if(cmd === "/connect"){
+    input.value = "Connecting wallet...";
+    if(window.ethereum){
+      window.ethereum.request({ method: 'eth_requestAccounts' })
+        .then(()=> input.value="Wallet Connected")
+        .catch(()=> input.value="Connection Failed");
+    } else {
+      input.value="No Wallet Found";
+    }
+  }
+
+  if(cmd === "/mint"){
+    input.value="Mint command triggered (hook your contract)";
+  }
+
+  if(cmd === "/unlock"){
+    input.value="Checking NFT ownership...";
+  }
+}
+
 /* ================= INPUT ================= */
 function writeKey(k){
   const out=(shift && shiftMap[k]) ? shiftMap[k] : k;
   input.value+=out;
+
+  // COMMAND DETECT
+  if(out === " " || out === "\n"){
+    const words=input.value.trim().split(" ");
+    const last=words[words.length-1];
+    if(last.startsWith("/")){
+      handleCommand(last);
+    }
+  }
 }
 
 /* ================= DRAW ================= */
@@ -236,19 +244,12 @@ function draw(text){
   for(let i=0;i<text.length;i++){
     let ch=text[i];
     let img=glyphCache[ch] || glyphCache[ch.toLowerCase()];
-
     const wave=Math.sin(time+i*0.3)*WAVE_AMPLITUDE;
 
-    if(ch===" "){
-      x+=GLYPH_SIZE;
-      continue;
-    }
+    if(ch===" "){ x+=GLYPH_SIZE; continue; }
 
     if(img && img.complete && img.naturalWidth){
-      if(x+GLYPH_SIZE>maxW){
-        x=10;
-        y+=GLYPH_SIZE+10;
-      }
+      if(x+GLYPH_SIZE>maxW){ x=10; y+=GLYPH_SIZE+10; }
       ctx.drawImage(img,x,y+wave,GLYPH_SIZE,GLYPH_SIZE);
       x+=GLYPH_SIZE;
     } else {
@@ -318,19 +319,12 @@ shiftBtn.innerText="SHIFT";
 shiftBtn.onclick=()=>{
   shift=!shift;
   shiftBtn.classList.toggle("shiftActive",shift);
-
-  document.querySelectorAll(".key").forEach(btn=>{
-    if(!btn.dataset.base) return;
-    const base=btn.dataset.base;
-    btn.childNodes[0].nodeValue =
-      (shift && displayShiftMap[base]) ? displayShiftMap[base] : base;
-  });
 };
 
 const space=document.createElement("div");
 space.className="key";
 space.innerText="SPACE";
-space.onclick=()=>input.value+=" ";
+space.onclick=()=>writeKey(" ");
 
 const back=document.createElement("div");
 back.className="key";
@@ -349,6 +343,10 @@ document.addEventListener("keydown",(e)=>{
 });
 
 /* ================= START ================= */
+if(isSandboxed){
+  input.value="[OpenSea Mode] Limited functionality";
+}
+
 preload(loop);
 
 </script>
